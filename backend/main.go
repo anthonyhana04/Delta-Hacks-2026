@@ -6,6 +6,8 @@ import (
 	"os"
 
 	"github.com/anthonyhana04/Delta-Hacks-2026/backend/api"
+	"github.com/gin-contrib/sessions"
+	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 )
@@ -24,6 +26,11 @@ func main() {
 
 
 	r := gin.Default()
+    
+    // Session Store
+    store := cookie.NewStore([]byte("secret")) 
+    r.Use(sessions.Sessions("mysession", store))
+
     ctrl := api.NewController()
 
 	r.GET("/ping", func(c *gin.Context) {
@@ -32,8 +39,15 @@ func main() {
 		})
 	})
 
-    // Main interaction endpoint
-    r.POST("/api/generate-password", ctrl.HandleGeneratePassword)
+    r.POST("/auth/google", ctrl.HandleGoogleLogin)
+
+    // Protected Routes
+    authorized := r.Group("/")
+    authorized.Use(ctrl.AuthMiddleware())
+    {
+        // Main interaction endpoint
+        authorized.POST("/api/generate-password", ctrl.HandleGeneratePassword)
+    }
 
 	port := os.Getenv("PORT")
 	if port == "" {
