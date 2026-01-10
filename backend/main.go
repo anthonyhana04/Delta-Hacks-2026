@@ -1,71 +1,47 @@
 package main
 
 import (
-	"context"
-	"fmt"
 	"log"
+	"net/http"
 	"os"
 
+	"github.com/anthonyhana04/Delta-Hacks-2026/backend/api"
+	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
-	"google.golang.org/genai"
 )
 
 func main() {
-	// Load .env file
-	if err := godotenv.Load(); err != nil {
-		log.Println("Warning: .env file not found")
-	}
+    // Load env vars
+    if err := godotenv.Load(); err != nil {
+        log.Println("Note: .env file not found, using system environment variables")
+    } else {
+        log.Println("Loaded .env file successfully")
+    }
+    
+    // Debug: Print DB config (masking password)
+    log.Printf("DB Config: Host=%s User=%s DB=%s Port=%s", 
+        os.Getenv("DB_HOST"), os.Getenv("DB_USER"), os.Getenv("DB_NAME"), os.Getenv("DB_PORT"))
 
-	// create gen ai client
-	ctx := context.Background()
-	// Load API key from environment variable
-	apiKey := os.Getenv("GEMINI_API_KEY")
-	if apiKey == "" {
-		log.Fatal("GEMINI_API_KEY environment variable not set")
-	}
 
-	client, err := genai.NewClient(ctx, &genai.ClientConfig{
-		APIKey: apiKey,
+	r := gin.Default()
+    ctrl := api.NewController()
+
+	r.GET("/ping", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"message": "pong",
+		})
 	})
-	if err != nil {
-		log.Fatal(err)
+
+    // Main interaction endpoint
+    r.POST("/api/generate-password", ctrl.HandleGeneratePassword)
+
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
 	}
 
-	// load image - pull from postgress server
-	imagePath := "/path/to/your/lava_lamp.jpg"
-	imgData, _ := os.ReadFile(imagePath)
-
-	// create prompt - split into parts
-	parts := []*genai.Part{
-		genai.NewPartFromText("Using the provided image of the lava lamp, please change the background to anything while keeping the lamp. Ensure that all details of the lamp is still visible and unchanged, with only the background being adjusted."),
-		&genai.Part{
-			InlineData: &genai.Blob{
-				MIMEType: "image/jpg",
-				Data:     imgData,
-			},
-		},
-	}
-
-	// generate contents
-	contents := []*genai.Content{
-		genai.NewContentFromParts(parts, genai.RoleUser),
-	}
-
-	// model used
-	result, _ := client.Models.GenerateContent(
-		ctx,
-		"gemini-3-pro-image-preview",
-		contents,
-	)
-
-	// save image back into the DB
-	for _, part := range result.Candidates[0].Content.Parts {
-		if part.Text != "" {
-			fmt.Println(part.Text)
-		} else if part.InlineData != nil {
-			imageBytes := part.InlineData.Data
-			outputFilename := "lava_lamp.jpg"
-			_ = os.WriteFile(outputFilename, imageBytes, 0644)
-		}
+	log.Printf("Lava Banana Backend starting on port %s", port)
+	if err := r.Run(":" + port); err != nil {
+		log.Fatalf("Failed to start server: %v", err)
 	}
 }
