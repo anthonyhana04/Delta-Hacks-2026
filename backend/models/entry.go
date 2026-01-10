@@ -12,6 +12,7 @@ type PasswordEntry struct {
 	UpdatedAt    time.Time      `json:"updated_at"`
 	DeletedAt    gorm.DeletedAt `gorm:"index" json:"-"`
 	
+	UserID          *uint  `json:"user_id"` // Pointer to allow nulls for existing data
 	S3Key           string `json:"s3_key"`
     WallpaperS3Key  string `json:"wallpaper_s3_key"` // New field for the AI generated image
 	Password        string `json:"password"` 
