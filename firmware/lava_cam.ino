@@ -1,9 +1,12 @@
 #include "esp_camera.h"
 #include "secrets.h"
+#include "time.h"
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
+#include <mbedtls/md.h>
+#include <mbedtls/sha256.h>
 
-// CAMERA_MODEL_AI_THINKER
+// --- CAMERA PIN CONFIG ---
 #define PWDN_GPIO_NUM 32
 #define RESET_GPIO_NUM -1
 #define XCLK_GPIO_NUM 0
@@ -20,45 +23,42 @@
 #define VSYNC_GPIO_NUM 25
 #define HREF_GPIO_NUM 23
 #define PCLK_GPIO_NUM 22
+#define LED_GPIO_NUM 4
 
-#define LED_GPIO_NUM                                                           \
-  4 // Flash Light on ESP32-CAM (or 33 for onboard built-in LED on some boards)
+// --- AWS CONFIG ---
+const char *ntpServer = "pool.ntp.org";
+const long gmtOffset_sec = 0; // UTC time
+const int daylightOffset_sec = 0;
 
 void setup() {
   Serial.begin(115200);
-  Serial.println("--- SYSTEM START ---");
-  Serial.println("1. Setting up LEDs...");
+  Serial.println("\n--- SYSTEM START v2.0 (Direct S3 Auth) ---");
 
   pinMode(LED_GPIO_NUM, OUTPUT);
-  digitalWrite(LED_GPIO_NUM, LOW); // Start off
+  digitalWrite(LED_GPIO_NUM, LOW);
 
-  Serial.println("2. Starting WiFi Connection to: " + String(WIFI_SSID));
+  // 1. WiFi
+  Serial.printf("Connecting to %s ", WIFI_SSID);
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-
-  int retryCount = 0;
-  while (WiFi.status() != WL_CONNECTED &&
-         retryCount < 40) { // Increased timeout to 20s
+  while (WiFi.status() != WL_CONNECTED) {
     delay(500);
     Serial.print(".");
-    if (retryCount % 10 == 0)
-      Serial.println(" (Still connecting...)");
-    // Blink to indicate connecting
     digitalWrite(LED_GPIO_NUM, !digitalRead(LED_GPIO_NUM));
-    retryCount++;
   }
+  digitalWrite(LED_GPIO_NUM, LOW);
+  Serial.println("\n[SUCCESS] WiFi connected");
 
-  if (WiFi.status() != WL_CONNECTED) {
-    Serial.println("\n[ERROR] WiFi Connect Failed! Status: " +
-                   String(WiFi.status()));
-    Serial.println("Common codes: 1=NO_SSID, 4=CONNECT_FAIL, 6=NO_PASS");
-    return; // Stop here if no wifi
-  } else {
-    digitalWrite(LED_GPIO_NUM, LOW);
-    Serial.println("\n[SUCCESS] WiFi connected! IP: " +
-                   WiFi.localIP().toString());
+  // 2. Time Sync (Critical for AWS SigV4)
+  Serial.println("Syncing Time...");
+  configTime(gmtOffset_sec, daylightOffset_sec, ntpServer);
+  struct tm timeinfo;
+  while (!getLocalTime(&timeinfo)) {
+    Serial.print(".");
+    delay(100);
   }
+  Serial.println("\n[SUCCESS] Time Synced");
 
-  Serial.println("3. Configuring Camera...");
+  // 3. Camera Init
   camera_config_t config;
   config.ledc_channel = LEDC_CHANNEL_0;
   config.ledc_timer = LEDC_TIMER_0;
@@ -82,125 +82,210 @@ void setup() {
   config.pixel_format = PIXFORMAT_JPEG;
 
   if (psramFound()) {
-    Serial.println("  - PSRAM found, using UXGA");
-    config.frame_size = FRAMESIZE_UXGA; // 1600x1200
+    config.frame_size = FRAMESIZE_UXGA;
     config.jpeg_quality = 10;
     config.fb_count = 2;
   } else {
-    Serial.println("  - No PSRAM, using SVGA");
     config.frame_size = FRAMESIZE_SVGA;
     config.jpeg_quality = 12;
     config.fb_count = 1;
   }
 
-  // Camera init
-  Serial.println("4. Initializing Camera Driver...");
-  esp_err_t err = esp_camera_init(&config);
-  if (err != ESP_OK) {
-    Serial.printf("[ERROR] Camera Init Failed: 0x%x\n", err);
+  if (esp_camera_init(&config) != ESP_OK) {
+    Serial.println("Camera Init Failed");
     return;
   }
+  Serial.println("Camera Ready");
 
-  Serial.println("[SUCCESS] Camera Ready!");
-
-  // Indicate ready with 3 quick blinks
-  for (int i = 0; i < 3; i++) {
-    digitalWrite(LED_GPIO_NUM, HIGH);
-    delay(100);
-    digitalWrite(LED_GPIO_NUM, LOW);
-    delay(100);
-  }
-
-  takeDataAndUpload();
+  takeAndUploadDetails();
 }
 
 void loop() {
-  Serial.println("\n--- LOOP START ---");
-  Serial.println("Waiting 60 seconds...");
+  Serial.println("Waiting 60s...");
   delay(60000);
-  takeDataAndUpload();
+  takeAndUploadDetails();
 }
 
-void takeDataAndUpload() {
-  Serial.println("STEP: Taking Picture");
-  digitalWrite(LED_GPIO_NUM, HIGH); // Flash on
+// --- CRYPTO HELPERS ---
+
+String sha256(String input) {
+  byte hash[32];
+  mbedtls_sha256_context ctx;
+  mbedtls_sha256_init(&ctx);
+  mbedtls_sha256_starts(&ctx, 0);
+  mbedtls_sha256_update(&ctx, (const unsigned char *)input.c_str(),
+                        input.length());
+  mbedtls_sha256_finish(&ctx, hash);
+  mbedtls_sha256_free(&ctx);
+
+  String result = "";
+  for (int i = 0; i < 32; i++) {
+    if (hash[i] < 0x10)
+      result += "0";
+    result += String(hash[i], HEX);
+  }
+  return result;
+}
+
+String sha256_buf(uint8_t *buf, size_t len) {
+  byte hash[32];
+  mbedtls_sha256_context ctx;
+  mbedtls_sha256_init(&ctx);
+  mbedtls_sha256_starts(&ctx, 0);
+  mbedtls_sha256_update(&ctx, buf, len);
+  mbedtls_sha256_finish(&ctx, hash);
+  mbedtls_sha256_free(&ctx);
+
+  String result = "";
+  for (int i = 0; i < 32; i++) {
+    if (hash[i] < 0x10)
+      result += "0";
+    result += String(hash[i], HEX);
+  }
+  return result;
+}
+
+void hmac_sha256(const char *key, size_t keylen, const char *data,
+                 size_t datalen, unsigned char *output) {
+  mbedtls_md_context_t ctx;
+  mbedtls_md_type_t md_type = MBEDTLS_MD_SHA256;
+
+  mbedtls_md_init(&ctx);
+  mbedtls_md_setup(&ctx, mbedtls_md_info_from_type(md_type), 1);
+  mbedtls_md_hmac_starts(&ctx, (const unsigned char *)key, keylen);
+  mbedtls_md_hmac_update(&ctx, (const unsigned char *)data, datalen);
+  mbedtls_md_hmac_finish(&ctx, output);
+  mbedtls_md_free(&ctx);
+}
+
+// --- UPLOAD LOGIC ---
+
+void takeAndUploadDetails() {
+  Serial.println("Taking Picture...");
+  digitalWrite(LED_GPIO_NUM, HIGH);
 
   camera_fb_t *fb = NULL;
+  // Cleanup buffer
+  esp_camera_fb_return(esp_camera_fb_get());
+  delay(100);
 
-  // Discard frames
-  Serial.println("  - Warming up sensor...");
-  for (int i = 0; i < 3; i++) {
-    fb = esp_camera_fb_get();
-    esp_camera_fb_return(fb);
-    delay(50);
-  }
-
-  Serial.println("  - Capturing frame...");
   fb = esp_camera_fb_get();
+  digitalWrite(LED_GPIO_NUM, LOW);
+
   if (!fb) {
-    Serial.println("[ERROR] Capture failed");
-    digitalWrite(LED_GPIO_NUM, LOW);
+    Serial.println("Capture failed");
     return;
   }
+  Serial.printf("Size: %d bytes\n", fb->len);
 
-  digitalWrite(LED_GPIO_NUM, LOW); // Flash off
-  Serial.printf("[SUCCESS] Picture taken! Size: %d bytes\n", fb->len);
+  // 1. Dates
+  struct tm timeinfo;
+  getLocalTime(&timeinfo);
+  char amzDate[20];  // YYYYMMDDTHHMMSSZ
+  char dateStamp[9]; // YYYYMMDD
+  strftime(amzDate, 20, "%Y%m%dT%H%M%SZ", &timeinfo);
+  strftime(dateStamp, 9, "%Y%m%d", &timeinfo);
 
-  // S3 Upload
+  // 2. Resource
+  String filename = "lava_" + String(millis()) + ".jpg";
+  String canonical_uri = "/" + filename;
+
+  // 3. Payload Hash
+  String payload_hash = sha256_buf(fb->buf, fb->len);
+
+  // 4. Canonical Request
+  // Method
+  // CanonicalURI
+  // CanonicalQueryString
+  // CanonicalHeaders
+  // SignedHeaders
+  // PayloadHash
+  String host =
+      String(AWS_BUCKET_NAME) + ".s3." + String(AWS_REGION) + ".amazonaws.com";
+
+  // NOTE: Headers must be sorted, lowercase
+  String canonical_headers = "host:" + host +
+                             "\nx-amz-content-sha256:" + payload_hash +
+                             "\nx-amz-date:" + String(amzDate) + "\n";
+  String signed_headers = "host;x-amz-content-sha256;x-amz-date";
+
+  String canonical_request = "PUT\n" + canonical_uri + "\n\n" +
+                             canonical_headers + "\n" + signed_headers + "\n" +
+                             payload_hash;
+
+  // 5. String to Sign
+  String algorithm = "AWS4-HMAC-SHA256";
+  String credential_scope =
+      String(dateStamp) + "/" + String(AWS_REGION) + "/s3/aws4_request";
+  String string_to_sign = algorithm + "\n" + String(amzDate) + "\n" +
+                          credential_scope + "\n" + sha256(canonical_request);
+
+  // 6. Sign
+  byte kSecret[64];
+  byte kDate[32];
+  byte kRegion[32];
+  byte kService[32];
+  byte kSigning[32];
+  byte signature[32];
+
+  String secretStr = "AWS4" + String(AWS_SECRET_KEY);
+  hmac_sha256(secretStr.c_str(), secretStr.length(), dateStamp,
+              strlen(dateStamp), kDate);
+  hmac_sha256((char *)kDate, 32, AWS_REGION, strlen(AWS_REGION), kRegion);
+  hmac_sha256((char *)kRegion, 32, "s3", 2, kService);
+  hmac_sha256((char *)kService, 32, "aws4_request", 12, kSigning);
+  hmac_sha256((char *)kSigning, 32, string_to_sign.c_str(),
+              string_to_sign.length(), signature);
+
+  String signatureStr = "";
+  for (int i = 0; i < 32; i++) {
+    if (signature[i] < 0x10)
+      signatureStr += "0";
+    signatureStr += String(signature[i], HEX);
+  }
+
+  String authorization_header =
+      algorithm + " Credential=" + String(AWS_ACCESS_KEY) + "/" +
+      credential_scope + ", SignedHeaders=" + signed_headers +
+      ", Signature=" + signatureStr;
+
+  // 7. Send Request
   WiFiClientSecure client;
   client.setInsecure();
 
-  String host =
-      String(AWS_BUCKET_NAME) + ".s3." + String(AWS_REGION) + ".amazonaws.com";
-  String filename = "lava_" + String(millis()) + ".jpg";
-
-  Serial.println("STEP: Uploading to " + host);
-  Serial.println("  - Filename: " + filename);
-
   if (client.connect(host.c_str(), 443)) {
-    Serial.println("  - [SUCCESS] Connected to server");
+    Serial.println("Uploading...");
 
-    Serial.println("  - Sending Headers...");
-    client.println("PUT /" + filename + " HTTP/1.1");
-    client.println("Host: " + host);
-    client.println("Content-Type: image/jpeg");
-    client.println("Content-Length: " + String(fb->len));
-    client.println("Connection: close");
-    client.println();
+    client.print("PUT " + canonical_uri + " HTTP/1.1\r\n");
+    client.print("Host: " + host + "\r\n");
+    client.print("x-amz-date: " + String(amzDate) + "\r\n");
+    client.print("x-amz-content-sha256: " + payload_hash + "\r\n");
+    client.print("Authorization: " + authorization_header + "\r\n");
+    client.print("Content-Length: " + String(fb->len) + "\r\n\r\n");
 
-    Serial.println("  - Sending Body...");
+    // Send data in chunks
     uint8_t *fbBuf = fb->buf;
     size_t fbLen = fb->len;
-    size_t sent = 0;
     for (size_t n = 0; n < fbLen; n = n + 1024) {
       if (n + 1024 < fbLen) {
         client.write(fbBuf, 1024);
         fbBuf += 1024;
-        sent += 1024;
       } else if (fbLen % 1024 > 0) {
         size_t remainder = fbLen % 1024;
         client.write(fbBuf, remainder);
-        sent += remainder;
       }
-      // Log progress every 10k
-      if (sent % 10240 == 0)
-        Serial.print(".");
     }
-    Serial.println("\n  - Body sent.");
 
-    Serial.println("  - Waiting for response...");
+    // Read Response
     while (client.connected()) {
       String line = client.readStringUntil('\n');
-      if (line == "\r") {
-        Serial.println("  - [RESPONSE] Headers received.");
+      if (line.startsWith("HTTP/1.1"))
+        Serial.println("Status: " + line);
+      if (line == "\r")
         break;
-      }
-      //      Serial.println("    > " + line); // Uncomment to see full headers
     }
-    Serial.println("[SUCCESS] Upload procedure finished.");
-    client.stop();
   } else {
-    Serial.println("[ERROR] Connection to S3 failed!");
+    Serial.println("Connect Failed");
   }
 
   esp_camera_fb_return(fb);
