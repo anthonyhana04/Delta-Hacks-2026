@@ -172,10 +172,6 @@ struct GeneratorView: View {
             .padding(.bottom, 80) // Space for Dock
 
             // Dock
-            VStack {
-                Spacer()
-                DockView(selectedTab: $selectedTab)
-            }
         }
         .toolbar(.hidden)
         // Popup Sheet for Entropy Source
