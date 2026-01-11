@@ -28,6 +28,13 @@ func main() {
 
 	// Session Store
 	store := cookie.NewStore([]byte("secret"))
+	store.Options(sessions.Options{
+		Path:     "/",
+		MaxAge:   86400 * 7,
+		HttpOnly: true,
+		Secure:   false, // Set to true in production with HTTPS
+		SameSite: http.SameSiteLaxMode,
+	})
 	r.Use(sessions.Sessions("mysession", store))
 
 	ctrl := api.NewController()
@@ -39,7 +46,7 @@ func main() {
 	})
 
 	// Mobile SDK Login
-	r.POST("/api/auth/google", ctrl.HandleGoogleLogin)
+	r.POST("/auth/google", ctrl.HandleGoogleLogin)
 
 	// Protected Routes
 	authorized := r.Group("/")
@@ -47,6 +54,7 @@ func main() {
 	{
 		// Main interaction endpoint
 		authorized.POST("/api/generate-password", ctrl.HandleGeneratePassword)
+		authorized.GET("/api/my-passwords", ctrl.HandleListPasswords)
 	}
 
 	port := os.Getenv("PORT")
