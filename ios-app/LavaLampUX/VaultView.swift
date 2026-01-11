@@ -1,8 +1,10 @@
 import SwiftUI
 
 struct VaultView: View {
-    @State private var selectedTab: TabItem = .vaults
+    @Environment(\.selectedTab) var selectedTab
     @State private var expandedVaultType: VaultType? = nil
+    @State private var showAddVaultSheet = false
+    @State private var customVaults: [CustomVaultCategory] = []
     
     // Master Source of Truth
     // Initializes with the mock data we defined in VaultModel
@@ -24,7 +26,9 @@ struct VaultView: View {
                             .foregroundColor(.white)
                         Spacer()
                         
-                        Button(action: {}) {
+                        Button(action: {
+                            showAddVaultSheet = true
+                        }) {
                             Image(systemName: "plus.circle.fill")
                                 .font(.system(size: 30))
                                 .foregroundColor(.white)
@@ -36,52 +40,72 @@ struct VaultView: View {
                     
                     // Content
                     ScrollView {
-                        LazyVStack(spacing: 20) { // Vertical Stack for Accordion
-                            // We iterate over the keys (types) in a stable order
-                            ForEach(VaultType.allCases, id: \.self) { type in
-                                let count = vaultData[type]?.count ?? 0
-                                let item = VaultItem(type: type, itemCount: count)
-                                
-                                VStack(spacing: 0) {
-                                    // The Card (Clickable)
-                                    Button(action: {
-                                        withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-                                            if expandedVaultType == type {
-                                                expandedVaultType = nil // Collapse
-                                            } else {
-                                                expandedVaultType = type // Expand
-                                            }
-                                        }
-                                    }) {
-                                        VaultCard(item: item)
-                                    }
-                                    .buttonStyle(PlainButtonStyle())
+                        VStack {
+                            LazyVStack(spacing: 20) { // Vertical Stack for Accordion
+                                // We iterate over the keys (types) in a stable order
+                                ForEach(VaultType.allCases, id: \.self) { type in
+                                    let count = vaultData[type]?.count ?? 0
+                                    let item = VaultItem(type: type, itemCount: count)
                                     
-                                    // The Dropdown Content
-                                    if expandedVaultType == type {
-                                        // Pass a binding to the specific array in the dictionary
-                                        PasswordListView(vaultType: type, items: Binding(
-                                            get: { vaultData[type] ?? [] },
-                                            set: { vaultData[type] = $0 }
-                                        ))
-                                        .transition(.opacity.combined(with: .move(edge: .top)))
-                                        .zIndex(-1)
+                                    VStack(spacing: 0) {
+                                        // The Card (Clickable)
+                                        Button(action: {
+                                            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                                                if expandedVaultType == type {
+                                                    expandedVaultType = nil // Collapse
+                                                } else {
+                                                    expandedVaultType = type // Expand
+                                                }
+                                            }
+                                        }) {
+                                            VaultCard(item: item)
+                                        }
+                                        .buttonStyle(PlainButtonStyle())
+                                        
+                                        // The Dropdown Content
+                                        if expandedVaultType == type {
+                                            // Pass a binding to the specific array in the dictionary
+                                            PasswordListView(vaultType: type, items: Binding(
+                                                get: { vaultData[type] ?? [] },
+                                                set: { vaultData[type] = $0 }
+                                            ))
+                                            .transition(.opacity.combined(with: .move(edge: .top)))
+                                            .zIndex(-1)
+                                        }
+                                    }
+                                }
+                                
+                                // Custom Vaults
+                                ForEach(customVaults) { vault in
+                                    VStack(spacing: 0) {
+                                        // The Card (Clickable) - Custom vaults are not expandable yet
+                                        Button(action: {
+                                            // Future: Add functionality for custom vault expansion
+                                        }) {
+                                            CustomVaultCard(vault: vault)
+                                        }
+                                        .buttonStyle(PlainButtonStyle())
                                     }
                                 }
                             }
+                            .padding(.horizontal, 24)
+                            .padding(.bottom, 120) // Extra space for Dock
                         }
-                        .padding(.horizontal, 24)
-                        .padding(.bottom, 120) // Extra space for Dock
+                        .frame(maxWidth: 600)
+                        .frame(maxWidth: .infinity)
                     }
                 }
                 
                 // Dock
                 VStack {
                     Spacer()
-                    DockView(selectedTab: $selectedTab)
+                    DockView(selectedTab: selectedTab)
                 }
             }
             .toolbar(.hidden) // Hide default nav bar
+            .sheet(isPresented: $showAddVaultSheet) {
+                AddVaultSheet(customVaults: $customVaults)
+            }
         }
     }
 }

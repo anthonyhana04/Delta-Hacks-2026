@@ -20,19 +20,23 @@ struct DockView: View {
     @Binding var selectedTab: TabItem
     
     var body: some View {
-        HStack(spacing: 20) {
-            ForEach(TabItem.allCases, id: \.self) { tab in
-                DockButton(tab: tab, selectedTab: $selectedTab)
+        HStack {
+            Spacer()
+            HStack(spacing: 20) {
+                ForEach(TabItem.allCases, id: \.self) { tab in
+                    DockButton(tab: tab, selectedTab: $selectedTab)
+                }
             }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(Color(red: 0.1, green: 0.1, blue: 0.15).opacity(0.8))
+            .cornerRadius(35)
+            .overlay(
+                RoundedRectangle(cornerRadius: 35)
+                    .stroke(Color.white.opacity(0.1), lineWidth: 1)
+            )
+            Spacer()
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-        .background(Color(red: 0.1, green: 0.1, blue: 0.15).opacity(0.8))
-        .cornerRadius(35)
-        .overlay(
-            RoundedRectangle(cornerRadius: 35)
-                .stroke(Color.white.opacity(0.1), lineWidth: 1)
-        )
         .padding(.horizontal, 20)
         .padding(.bottom, 20)
     }
