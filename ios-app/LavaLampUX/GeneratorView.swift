@@ -8,7 +8,8 @@ struct GeneratorView: View {
     @State private var isVisible = false
     @State private var length = 16.0
     @State private var isImageVisible = false
-    @State private var isGenerated = false  // New state for flow
+    @State private var isGenerated = false
+    @State private var wallpaperURL: String?
 
     var body: some View {
         ZStack {
@@ -16,184 +17,159 @@ struct GeneratorView: View {
             LavaLampBackground()
 
             VStack(spacing: 0) {
-                // Header
-                HStack {
-                    Text("Generator")
-                        .font(.system(size: 34, weight: .bold, design: .rounded))
-                        .foregroundColor(.white)
-                    Spacer()
-                }
-                .padding(.horizontal, 24)
-                .padding(.top, 20)
-                .padding(.bottom, 20)
-
-                ScrollView {
-                    VStack(spacing: 30) {
-
-                        // Settings Section (Always Visible)
-                        VStack(alignment: .leading, spacing: 20) {
-                            Text("Settings")
-                                .font(.system(size: 20, weight: .bold, design: .rounded))
-                                .foregroundColor(.white)
-
-                            // Length Slider
-                            VStack(alignment: .leading, spacing: 12) {
+                Spacer() // Push content to center
+                
+                // Main Content Card
+                VStack(spacing: 32) {
+                    
+                    // 1. Password Display Area
+                    VStack(spacing: 20) {
+                        // Header Row with Controls
+                        ZStack {
+                            Text("GENERATED PASSWORD")
+                                .font(.system(size: 12, weight: .bold, design: .rounded))
+                                .tracking(2)
+                                .foregroundColor(.white.opacity(0.6))
+                            
+                            if isGenerated {
                                 HStack {
-                                    Text("Length")
-                                        .font(.system(size: 16, weight: .medium))
-                                        .foregroundColor(.white.opacity(0.8))
-                                    Spacer()
-                                    Text("\(Int(length))")
-                                        .font(.system(size: 18, weight: .bold, design: .monospaced))
-                                        .foregroundColor(.blue)
-                                }
-
-                                Slider(value: $length, in: 8...32, step: 1)
-                                    .tint(.blue)
-                                    .onChange(of: length) { _ in
-                                        // Optional: Regenerate live if already generated?
-                                        // For now, let's keep it manual as requested
+                                    // Copy Button (Top Left)
+                                    Button(action: {
+                                        UIPasteboard.general.string = password
+                                    }) {
+                                        Image(systemName: "doc.on.doc.fill")
+                                            .foregroundColor(.white.opacity(0.8))
+                                            .font(.system(size: 16))
+                                            .padding(8)
+                                            .background(Color.white.opacity(0.1))
+                                            .clipShape(Circle())
                                     }
+                                    
+                                    Spacer()
+                                    
+                                    // Eye Button (Top Right)
+                                    Button(action: { isVisible.toggle() }) {
+                                        Image(systemName: isVisible ? "eye.slash.fill" : "eye.fill")
+                                            .foregroundColor(.white.opacity(0.8))
+                                            .font(.system(size: 16))
+                                            .padding(8)
+                                            .background(Color.white.opacity(0.1))
+                                            .clipShape(Circle())
+                                    }
+                                }
                             }
-                            .padding(20)
-                            .background(Color.white.opacity(0.03))
-                            .cornerRadius(20)
                         }
-                        .padding(.horizontal, 24)
-
-                        // Action Button
+                        
+                        ZStack {
+                            if isGenerated {
+                                if isVisible {
+                                    Text(password)
+                                        .font(.system(size: 28, weight: .bold, design: .monospaced))
+                                        .foregroundColor(.white)
+                                        .minimumScaleFactor(0.5)
+                                        .lineLimit(1)
+                                } else {
+                                    Text("••••••••••")
+                                        .font(.system(size: 32, weight: .bold, design: .monospaced))
+                                        .foregroundColor(.white.opacity(0.5))
+                                }
+                            } else {
+                                Text("Tap Generate")
+                                    .font(.system(size: 24, weight: .medium, design: .rounded))
+                                    .foregroundColor(.white.opacity(0.3))
+                            }
+                        }
+                        .frame(height: 50)
+                        .frame(maxWidth: .infinity)
+                    }
+                    .padding(.vertical, 24)
+                    .padding(.horizontal, 20)
+                    .background(.ultraThinMaterial)
+                    .cornerRadius(24)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 24)
+                            .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                    )
+                    
+                    // 2. Length Slider (Minimal)
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack {
+                            Text("Length")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundColor(.white.opacity(0.7))
+                            Spacer()
+                            Text("\(Int(length))")
+                                .font(.system(size: 16, weight: .bold, design: .monospaced))
+                                .foregroundColor(.white)
+                        }
+                        
+                        Slider(value: $length, in: 8...32, step: 1)
+                            .tint(.white)
+                    }
+                    .padding(.horizontal, 10)
+                    
+                    // 3. Action Buttons
+                    VStack(spacing: 24) {
                         Button(action: {
                             generatePassword()
                         }) {
-                            Text(isGenerated ? "Regenerate Password" : "Generate Password")
+                            Text(isGenerated ? "Regenerate" : "Generate Password")
                                 .font(.system(size: 18, weight: .bold, design: .rounded))
-                                .foregroundColor(.white)
+                                .foregroundColor(.black)
                                 .frame(maxWidth: .infinity)
-                                .padding()
-                                .background(Color.blue)
-                                .cornerRadius(16)
-                                .shadow(color: .blue.opacity(0.4), radius: 8, x: 0, y: 4)
+                                .padding(.vertical, 18)
+                                .background(Color.white)
+                                .cornerRadius(18)
+                                .shadow(color: .black.opacity(0.2), radius: 10, x: 0, y: 5)
                         }
-                        .padding(.horizontal, 24)
-
-                        // Results Section (Visible after Generation)
+                        
                         if isGenerated {
-                            VStack(spacing: 24) {
-                                // Password Display Card
-                                VStack(spacing: 20) {
-                                    Text("Lava Entropy Password")
-                                        .font(
-                                            .system(size: 14, weight: .semibold, design: .rounded)
-                                        )
-                                        .foregroundColor(.white.opacity(0.6))
-                                        .tracking(1)
-
+                            HStack(spacing: 0) { // spacing 0 to let Spacer do full separation
+                                Button(action: {
+                                    isImageVisible = true
+                                }) {
                                     HStack {
-                                        if isVisible {
-                                            Text(password)
-                                                .font(
-                                                    .system(
-                                                        size: 24, weight: .bold, design: .monospaced
-                                                    )
-                                                )
-                                                .foregroundColor(.white)
-                                                .lineLimit(1)
-                                                .minimumScaleFactor(0.5)
-                                        } else {
-                                            Text("••••••••••••••••")
-                                                .font(
-                                                    .system(
-                                                        size: 32, weight: .bold, design: .monospaced
-                                                    )
-                                                )
-                                                .foregroundColor(.white.opacity(0.3))
-                                        }
-
-                                        Spacer()
-
-                                        Button(action: { isVisible.toggle() }) {
-                                            Image(
-                                                systemName: isVisible
-                                                    ? "eye.slash.fill" : "eye.fill"
-                                            )
-                                            .foregroundColor(.blue)
-                                            .font(.system(size: 20))
-                                        }
+                                        Image(systemName: "sparkles")
+                                        Text("View Entropy") 
                                     }
-                                    .padding(24)
-                                    .background(Color.white.opacity(0.05))
-                                    .background(.ultraThinMaterial)
-                                    .cornerRadius(20)
+                                    .font(.system(size: 16, weight: .semibold))
+                                    .foregroundColor(.white.opacity(0.9))
+                                    .padding(.vertical, 16)
+                                    .padding(.horizontal, 24) // Natural padding
+                                    .background(Color.black.opacity(0.3))
+                                    .cornerRadius(30)
                                     .overlay(
-                                        RoundedRectangle(cornerRadius: 20)
-                                            .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                                        RoundedRectangle(cornerRadius: 30)
+                                            .stroke(Color.white.opacity(0.15), lineWidth: 1)
                                     )
                                 }
-
-                                // Entropy Source Image Dropdown
-                                VStack(spacing: 0) {
-                                    Button(action: {
-                                        withAnimation(.spring(response: 0.4, dampingFraction: 0.8))
-                                        {
-                                            isImageVisible.toggle()
-                                        }
-                                    }) {
-                                        HStack {
-                                            Image(systemName: "photo.fill")
-                                                .foregroundColor(.purple)
-                                            Text("View Entropy Source")
-                                                .font(
-                                                    .system(
-                                                        size: 16, weight: .semibold,
-                                                        design: .rounded)
-                                                )
-                                                .foregroundColor(.white)
-                                            Spacer()
-                                            Image(systemName: "chevron.down")
-                                                .foregroundColor(.white.opacity(0.5))
-                                                .rotationEffect(.degrees(isImageVisible ? 180 : 0))
-                                        }
-                                        .padding(16)
-                                        .background(Color.white.opacity(0.05))
-                                        .background(.ultraThinMaterial)
-                                        .cornerRadius(16)
-                                    }
-
-                                    if isImageVisible {
-                                        VStack {
-                                            // Placeholder for the Lava Lamp Image
-                                            Image("lava_lamp_entropy_source")
-                                                .resizable()
-                                                .aspectRatio(contentMode: .fill)
-                                                .frame(maxWidth: .infinity)
-                                                .frame(height: 300)
-                                                .clipShape(RoundedRectangle(cornerRadius: 16))
-                                                .overlay(
-                                                    RoundedRectangle(cornerRadius: 16)
-                                                        .stroke(
-                                                            Color.white.opacity(0.1), lineWidth: 1)
-                                                )
-                                                .padding(.top, 12)
-
-                                            Text("Entropy derived from physical fluid dynamics")
-                                                .font(
-                                                    .system(
-                                                        size: 12, weight: .medium, design: .rounded)
-                                                )
-                                                .foregroundColor(.white.opacity(0.4))
-                                                .padding(.top, 8)
-                                        }
-                                        .transition(.move(edge: .top).combined(with: .opacity))
-                                    }
+                                
+                                Spacer() // Push buttons apart
+                                
+                                Button(action: {
+                                    let generator = UINotificationFeedbackGenerator()
+                                    generator.notificationOccurred(.success)
+                                }) {
+                                    Image(systemName: "square.and.arrow.down.fill")
+                                        .font(.system(size: 20, weight: .bold))
+                                        .foregroundColor(.white)
+                                        .padding(.vertical, 14)
+                                        .padding(.horizontal, 24) // Natural padding
+                                        .frame(height: 52) 
+                                        .background(Color.blue)
+                                        .cornerRadius(30)
+                                        .shadow(color: .blue.opacity(0.4), radius: 6, x: 0, y: 3)
                                 }
                             }
-                            .padding(.horizontal, 24)
-                            .transition(.move(edge: .bottom).combined(with: .opacity))
                         }
                     }
-                    .padding(.bottom, 120)  // Extra space for Dock
                 }
+                .padding(.horizontal, 32)
+                
+                Spacer()
+                Spacer() // Balance visual center upwards a bit
             }
+            .padding(.bottom, 80) // Space for Dock
 
             // Dock
             VStack {
@@ -202,23 +178,108 @@ struct GeneratorView: View {
             }
         }
         .toolbar(.hidden)
+        // Popup Sheet for Entropy Source
+        .sheet(isPresented: $isImageVisible) {
+            ZStack {
+                Color.black.edgesIgnoringSafeArea(.all)
+                
+                VStack(spacing: 24) {
+                    // Manual Capsule Removed - using drag indicator
+                    
+                    Text("Entropy Source")
+                        .font(.title3)
+                        .fontWeight(.bold)
+                        .foregroundColor(.white)
+                        .padding(.top, 24)
+                    
+                    if let urlString = wallpaperURL, let url = URL(string: urlString) {
+                        AsyncImage(url: url) { phase in
+                            switch phase {
+                            case .empty:
+                                ProgressView()
+                                    .tint(.white)
+                            case .success(let image):
+                                image.resizable()
+                                    .aspectRatio(contentMode: .fit)
+                                    .cornerRadius(16)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 16)
+                                            .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                                    )
+                            case .failure:
+                                Image(systemName: "exclamationmark.triangle")
+                                    .foregroundColor(.red)
+                            @unknown default:
+                                EmptyView()
+                            }
+                        }
+                        .frame(maxHeight: 500)
+                        
+                        Text("This unique pattern was generated from chaotic lava lamp movements, providing true randomness for your key.")
+                            .font(.subheadline)
+                            .foregroundColor(.white.opacity(0.6))
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 32)
+                            .lineSpacing(4)
+                    }
+                    
+                    Spacer()
+                }
+                .padding()
+            }
+            .presentationDetents([.medium])
+            .presentationDragIndicator(.visible)
+        }
+    }
+
+    // Response Model
+    struct GenerationResponse: Codable {
+        let password: String
+        let image_url: String
+        let wallpaper_url: String
+        let entropy_bits: Int64
     }
 
     private func generatePassword() {
-        // Logic to generate password
-        let charset = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*"
-        password = String((0..<Int(length)).map { _ in charset.randomElement()! })
+        guard let url = URL(string: "http://localhost:8080/api/generate-password") else { return }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        // Send length
+        let body: [String: Int] = ["length": Int(length)]
+        request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+        
+        URLSession.shared.dataTask(with: request) { data, response, error in
+            DispatchQueue.main.async {
+                if let error = error {
+                    print("Generation Error: \(error.localizedDescription)")
+                    return
+                }
+                
+                guard let data = data else { return }
+                
+                // Debug response
+                if let str = String(data: data, encoding: .utf8) {
+                    print("Generation Response: \(str)")
+                }
 
-        withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
-            isGenerated = true
-            isImageVisible = true  // Auto-show entropy source as requested?
-            // User said "Only after... the view entropy source photo dropdown appears" -> maybe just the control appears?
-            // "and viewing the password"
-
-            // Let's reset visibility of password for security initially? Or show it?
-            // User: "viewing the password". I'll default to visible.
-            isVisible = true
-        }
+                do {
+                    let result = try JSONDecoder().decode(GenerationResponse.self, from: data)
+                    
+                    self.password = result.password
+                    self.wallpaperURL = result.wallpaper_url
+                    
+                    withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
+                        self.isGenerated = true
+                        self.isVisible = false // Hidden by default
+                    }
+                } catch {
+                    print("Decoding Error: \(error)")
+                }
+            }
+        }.resume()
     }
 }
 

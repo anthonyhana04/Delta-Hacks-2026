@@ -136,8 +136,62 @@ struct PasswordListView: View {
         .background(Color.black.opacity(0.3))
         .cornerRadius(20)
         .padding(.horizontal, 10)
+        .onAppear {
+            fetchPasswords()
+        }
         .animation(.spring(), value: items)
         .animation(.spring(), value: isAdding)
+    }
+
+    struct PasswordResponseEntry: Codable {
+        let id: UInt
+        let password: String
+        let entropy_bits: Int64
+        let wallpaper_url: String
+        let created_at: String
+    }
+
+    private func fetchPasswords() {
+        guard let url = URL(string: "http://localhost:8080/api/my-passwords") else { return }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        
+        URLSession.shared.dataTask(with: request) { data, response, error in
+            if let error = error {
+                print("Fetch Error: \(error)")
+                return
+            }
+            
+            guard let data = data else { return }
+            
+            do {
+                let decoder = JSONDecoder()
+                // Adjust date decoding strategy if needed, standard ISO8601 is default for Go time.Time
+                decoder.dateDecodingStrategy = .iso8601 
+                
+                let entries = try decoder.decode([PasswordResponseEntry].self, from: data)
+                
+                DispatchQueue.main.async {
+                    self.items = entries.map { entry in
+                        PasswordItem(
+                            id: UUID(), // Map backend ID in real app
+                            name: "Generated Password", // Generate name or use date
+                            username: "User",
+                            password: entry.password,
+                            websiteUrl: entry.wallpaper_url, // Using wallpaper as URL for now
+                            brandColor: .purple,
+                            iconInitial: "P"
+                        )
+                    }
+                }
+            } catch {
+                print("Decoding List Error: \(error)")
+                if let str = String(data: data, encoding: .utf8) {
+                    print("Raw Data: \(str)")
+                }
+            }
+        }.resume()
     }
     
     private func deleteItem(_ item: PasswordItem) {
