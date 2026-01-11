@@ -5,7 +5,7 @@ enum TabItem: String, CaseIterable {
     case mfa = "MFA"
     case generator = "Generator"
     case settings = "Settings"
-    
+
     var icon: String {
         switch self {
         case .vaults: return "lock.fill"
@@ -14,11 +14,20 @@ enum TabItem: String, CaseIterable {
         case .settings: return "gearshape.fill"
         }
     }
+
+    var index: Int {
+        switch self {
+        case .vaults: return 0
+        case .mfa: return 1
+        case .generator: return 2
+        case .settings: return 3
+        }
+    }
 }
 
 struct DockView: View {
     @Binding var selectedTab: TabItem
-    
+
     var body: some View {
         HStack {
             Spacer()
@@ -38,18 +47,18 @@ struct DockView: View {
             Spacer()
         }
         .padding(.horizontal, 20)
-        .padding(.bottom, 20)
+        .padding(.bottom, -20)
     }
 }
 
 struct DockButton: View {
     let tab: TabItem
     @Binding var selectedTab: TabItem
-    
+
     var isSelected: Bool {
         selectedTab == tab
     }
-    
+
     var body: some View {
         Button(action: {
             withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
@@ -61,17 +70,19 @@ struct DockButton: View {
                     .font(.system(size: 24, weight: .semibold))
                     .foregroundColor(isSelected ? .white : .gray)
                     .scaleEffect(isSelected ? 1.1 : 1.0)
-                
+
                 Text(tab.rawValue)
                     .font(.system(size: 10, weight: .medium, design: .rounded))
                     .foregroundColor(isSelected ? .white : .gray)
             }
-            .frame(width: 70, height: 70) // Slightly increased size to fit text comfortable
+            .frame(width: 70, height: 70)  // Slightly increased size to fit text comfortable
             .background(Color(red: 0.05, green: 0.05, blue: 0.1))
-            .cornerRadius(20) // Adjusted radius for new size
+            .cornerRadius(20)  // Adjusted radius for new size
             .overlay(
                 RoundedRectangle(cornerRadius: 24)
-                    .stroke(isSelected ? Color.white.opacity(0.5) : Color.white.opacity(0.1), lineWidth: 1)
+                    .stroke(
+                        isSelected ? Color.white.opacity(0.5) : Color.white.opacity(0.1),
+                        lineWidth: 1)
             )
             .shadow(color: Color.black.opacity(0.3), radius: 5, x: 0, y: 4)
         }

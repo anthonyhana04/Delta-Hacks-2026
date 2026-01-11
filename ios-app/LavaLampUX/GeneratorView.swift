@@ -196,10 +196,6 @@ struct GeneratorView: View {
             }
 
             // Dock
-            VStack {
-                Spacer()
-                DockView(selectedTab: $selectedTab)
-            }
         }
         .toolbar(.hidden)
     }

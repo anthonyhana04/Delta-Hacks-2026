@@ -134,10 +134,6 @@ struct SettingsView: View {
             }
 
             // Dock
-            VStack {
-                Spacer()
-                DockView(selectedTab: $selectedTab)
-            }
         }
         .toolbar(.hidden)
     }
