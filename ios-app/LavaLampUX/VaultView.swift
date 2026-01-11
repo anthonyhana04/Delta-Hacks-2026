@@ -15,9 +15,6 @@ struct VaultView: View {
 
     var body: some View {
         ZStack {
-            // Background - Animated Lava Lamp (Global Background for all tabs)
-            LavaLampBackground()
-
             switch selectedTab {
             case .generator:
                 GeneratorView(selectedTab: $selectedTab)
@@ -25,6 +22,8 @@ struct VaultView: View {
                 // Existing Vault View Content
                 NavigationView {
                     ZStack {
+                        // Background - Animated Lava Lamp (Specific to this tab to avoid NavView obscuring it)
+                        LavaLampBackground()
                         VStack(spacing: 0) {
                             // Header
                             HStack {
