@@ -2,7 +2,7 @@ import SwiftUI
 
 struct AddVaultSheet: View {
     @Environment(\.dismiss) var dismiss
-    @Binding var customVaults: [CustomVaultCategory]
+    var onAdd: (VaultGroup) -> Void
     
     @State private var vaultName: String = ""
     @State private var selectedIcon: String = "folder.fill"
@@ -152,7 +152,7 @@ struct AddVaultSheet: View {
                         Button(action: {
                             createVault()
                         }) {
-                            Text("Create Vault")
+                            Text("Create Group")
                                 .font(.system(size: 18, weight: .bold, design: .rounded))
                                 .foregroundColor(.white)
                                 .frame(maxWidth: .infinity)
@@ -179,29 +179,15 @@ struct AddVaultSheet: View {
         let trimmedName = vaultName.trimmingCharacters(in: .whitespaces)
         guard !trimmedName.isEmpty else { return }
         
-        let newVault = CustomVaultCategory(
+        // Return new group via closure
+        let newGroup = VaultGroup(
             name: trimmedName,
             icon: selectedIcon,
-            color: selectedColor,
-            itemCount: 0
+            color: selectedColor
         )
         
-        customVaults.append(newVault)
+        onAdd(newGroup)
         dismiss()
     }
 }
 
-struct CustomVaultCategory: Identifiable, Equatable {
-    let id = UUID()
-    let name: String
-    let icon: String
-    let color: Color
-    var itemCount: Int
-    
-    static func == (lhs: CustomVaultCategory, rhs: CustomVaultCategory) -> Bool {
-        return lhs.id == rhs.id &&
-               lhs.name == rhs.name &&
-               lhs.icon == rhs.icon &&
-               lhs.itemCount == rhs.itemCount
-    }
-}

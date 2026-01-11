@@ -1,92 +1,215 @@
 import SwiftUI
+import Combine
 
-enum VaultType: String, CaseIterable {
-    case personal = "Personal"
-    case work = "Work"
-    case family = "Family"
-    case social = "Social Media"
+// 1. Vault Group Model
+struct VaultGroup: Identifiable, Codable, Hashable {
+    var id: UUID
+    var name: String
+    var icon: String
+    var colorHex: String 
     
     var color: Color {
-        switch self {
-        case .personal: return Color(red: 0.6, green: 0.8, blue: 1.0) // Pastel Blue
-        case .work: return Color(red: 1.0, green: 0.8, blue: 0.6) // Pastel Orange
-        case .family: return Color(red: 0.7, green: 0.9, blue: 0.7) // Pastel Green
-        case .social: return Color(red: 0.9, green: 0.7, blue: 0.9) // Pastel Purple
-        }
+        Color(hex: colorHex) ?? .blue
     }
     
-    var icon: String {
-        switch self {
-        case .personal: return "person.fill"
-        case .work: return "briefcase.fill"
-        case .family: return "house.fill"
-        case .social: return "message.fill"
-        }
-    }
-}
-
-struct VaultItem: Identifiable {
-    let id = UUID()
-    let type: VaultType
-    let itemCount: Int
-}
-
-struct PasswordItem: Identifiable, Equatable {
-    let id: UUID
-    
-    init(id: UUID = UUID(), name: String, username: String, password: String, websiteUrl: String, brandColor: Color, iconInitial: String) {
+    init(id: UUID = UUID(), name: String, icon: String, color: Color) {
         self.id = id
+        self.name = name
+        self.icon = icon
+        self.colorHex = color.toHex() ?? "#0000FF"
+    }
+    
+    // Default Groups helper
+    static let allGroupsId = UUID(uuidString: "00000000-0000-0000-0000-000000000000")!
+}
+
+// 2. Password Item Model
+struct PasswordItem: Identifiable, Codable, Equatable {
+    var id: UUID 
+    var groupID: UUID? 
+    
+    var name: String
+    var username: String
+    var password: String
+    var websiteUrl: String
+    var brandColorHex: String
+    var iconInitial: String
+    
+    var brandColor: Color {
+        Color(hex: brandColorHex) ?? .gray
+    }
+    
+    init(id: UUID = UUID(), groupID: UUID? = nil, name: String, username: String, password: String, websiteUrl: String, brandColor: Color, iconInitial: String) {
+        self.id = id
+        self.groupID = groupID
         self.name = name
         self.username = username
         self.password = password
         self.websiteUrl = websiteUrl
-        self.brandColor = brandColor
+        self.brandColorHex = brandColor.toHex() ?? "#808080"
         self.iconInitial = iconInitial
-    }
-    let name: String
-    let username: String
-    let password: String // New field
-    let websiteUrl: String // New field
-    let brandColor: Color
-    let iconInitial: String
-    
-    static func == (lhs: PasswordItem, rhs: PasswordItem) -> Bool {
-        return lhs.id == rhs.id && 
-               lhs.name == rhs.name && 
-               lhs.username == rhs.username &&
-               lhs.password == rhs.password &&
-               lhs.websiteUrl == rhs.websiteUrl &&
-               lhs.iconInitial == rhs.iconInitial
     }
 }
 
-// Mock Data
-extension PasswordItem {
-    static func mockData(for type: VaultType) -> [PasswordItem] {
-        switch type {
-        case .social:
-            return [
-                PasswordItem(name: "Instagram", username: "user_insta", password: "instaPassword123", websiteUrl: "instagram.com", brandColor: .purple, iconInitial: "I"),
-                PasswordItem(name: "Twitter", username: "@user_tweet", password: "tweetPass!@#", websiteUrl: "twitter.com", brandColor: .blue, iconInitial: "T"),
-                PasswordItem(name: "Facebook", username: "fb.com/user", password: "fbSecureLogin", websiteUrl: "facebook.com", brandColor: .blue.opacity(0.8), iconInitial: "F")
-            ]
-        case .personal:
-            return [
-                PasswordItem(name: "Netflix", username: "chill@example.com", password: "watchingMovies!", websiteUrl: "netflix.com", brandColor: .red, iconInitial: "N"),
-                PasswordItem(name: "Spotify", username: "music_lover", password: "musicIsLife456", websiteUrl: "spotify.com", brandColor: .green, iconInitial: "S"),
-                PasswordItem(name: "Amazon", username: "prime_user", password: "primeDelivery789", websiteUrl: "amazon.com", brandColor: .orange, iconInitial: "A")
-            ]
-        case .work:
-            return [
-                PasswordItem(name: "Grammarly", username: "editor@work.com", password: "grammarPolice", websiteUrl: "grammarly.com", brandColor: .green, iconInitial: "G"),
-                PasswordItem(name: "Slack", username: "dev_team", password: "slackChannelKey", websiteUrl: "slack.com", brandColor: .purple.opacity(0.8), iconInitial: "S"),
-                PasswordItem(name: "Jira", username: "ticket_master", password: "jiraTicket#101", websiteUrl: "atlassian.com", brandColor: .blue, iconInitial: "J")
-            ]
-        case .family:
-            return [
-                PasswordItem(name: "Disney+", username: "kids_profile", password: "mickeyMouse1", websiteUrl: "disneyplus.com", brandColor: .blue, iconInitial: "D"),
-                PasswordItem(name: "Hulu", username: "family_plan", password: "huluShows2024", websiteUrl: "hulu.com", brandColor: .green, iconInitial: "H")
-            ]
+// 3. Vault Group Manager (API Persistence)
+class VaultGroupManager: ObservableObject {
+    @Published var groups: [VaultGroup] = []
+    
+    // In a real app, use a configuration or env var
+    private let baseURL = "http://localhost:8080/api"
+    
+    init() {
+        // We load groups on init or View can trigger it
+        // fetchGroups()
+    }
+    
+    func fetchGroups() {
+        guard let url = URL(string: "\(baseURL)/groups") else { return }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        
+        URLSession.shared.dataTask(with: request) { data, response, error in
+            if let error = error {
+                print("Error fetching groups: \(error)")
+                return
+            }
+            
+            guard let data = data else { return }
+            
+            do {
+                let decoded = try JSONDecoder().decode([VaultGroup].self, from: data)
+                DispatchQueue.main.async {
+                    self.groups = decoded
+                }
+            } catch {
+                print("Error decoding groups: \(error)")
+            }
+        }.resume()
+    }
+    
+    func addGroup(name: String, icon: String, color: Color) {
+        guard let url = URL(string: "\(baseURL)/groups") else { return }
+        
+        // Optimistic UI update? Or wait for response? 
+        // Let's optimistic -> revert on fail, or just wait. Waiting is safer for ID sync.
+        
+        let newGroupReq = VaultGroup(name: name, icon: icon, color: color)
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        do {
+            request.httpBody = try JSONEncoder().encode(newGroupReq)
+        } catch {
+            print("Encoding error: \(error)")
+            return
+        }
+        
+        URLSession.shared.dataTask(with: request) { data, response, error in
+            guard let data = data, error == nil else { return }
+            
+            if let createdGroup = try? JSONDecoder().decode(VaultGroup.self, from: data) {
+                DispatchQueue.main.async {
+                    self.groups.append(createdGroup)
+                }
+            }
+        }.resume()
+    }
+    
+    func deleteGroup(at offsets: IndexSet) {
+        // Handle multiple deletions
+        offsets.forEach { index in
+            let group = groups[index]
+            deleteGroupID(group.id)
+        }
+        
+        // Optimistic local remove
+        groups.remove(atOffsets: offsets)
+    }
+    
+    // Explicit delete by object (used in context menu)
+    func deleteGroup(_ group: VaultGroup) {
+        if let index = groups.firstIndex(where: { $0.id == group.id }) {
+            groups.remove(at: index)
+            deleteGroupID(group.id)
         }
     }
+    
+    private func deleteGroupID(_ id: UUID) {
+        let urlString = "\(baseURL)/groups/\(id.uuidString.lowercased())"
+        guard let url = URL(string: urlString) else { return }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "DELETE"
+        
+        URLSession.shared.dataTask(with: request) { _, _, error in
+            if let error = error {
+                print("Error deleting group: \(error)")
+            }
+        }.resume()
+    }
 }
+
+// Helper Extensions for Color Serialization
+extension Color {
+    init?(hex: String) {
+        var hexSanitized = hex.trimmingCharacters(in: .whitespacesAndNewlines)
+        hexSanitized = hexSanitized.replacingOccurrences(of: "#", with: "")
+
+        var rgb: UInt64 = 0
+
+        var r: CGFloat = 0.0
+        var g: CGFloat = 0.0
+        var b: CGFloat = 0.0
+        var a: CGFloat = 1.0
+
+        let length = hexSanitized.count
+
+        guard Scanner(string: hexSanitized).scanHexInt64(&rgb) else { return nil }
+
+        if length == 6 {
+            r = CGFloat((rgb & 0xFF0000) >> 16) / 255.0
+            g = CGFloat((rgb & 0x00FF00) >> 8) / 255.0
+            b = CGFloat(rgb & 0x0000FF) / 255.0
+
+        } else if length == 8 {
+            r = CGFloat((rgb & 0xFF000000) >> 24) / 255.0
+            g = CGFloat((rgb & 0x00FF0000) >> 16) / 255.0
+            b = CGFloat((rgb & 0x0000FF00) >> 8) / 255.0
+            a = CGFloat(rgb & 0x000000FF) / 255.0
+
+        } else {
+            return nil
+        }
+
+        self.init(red: r, green: g, blue: b, opacity: a)
+    }
+
+    func toHex() -> String? {
+        // Simple conversion for basic sRGB colors
+        // Note: This matches standard SwiftUI Color behavior better in iOS 14+
+        guard let components = UIColor(self).cgColor.components else { return nil }
+        
+        // Handle varying component counts (grayscale vs rgba)
+        let r, g, b: CGFloat
+        
+        if components.count >= 3 {
+             r = components[0]
+             g = components[1]
+             b = components[2]
+        } else {
+            // Grayscale
+            r = components[0]
+            g = components[0]
+            b = components[0]
+        }
+
+        return String(format: "#%02lX%02lX%02lX",
+                      lroundf(Float(r * 255)),
+                      lroundf(Float(g * 255)),
+                      lroundf(Float(b * 255)))
+    }
+}
+
