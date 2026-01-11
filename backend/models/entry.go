@@ -8,7 +8,7 @@ import (
 )
 
 type PasswordEntry struct {
-	ID        uuid.UUID      `gorm:"type:uuid;default:gen_random_uuid();primaryKey" json:"id"`
+	ID        uuid.UUID      `gorm:"type:uuid;primaryKey" json:"id"`
 	CreatedAt time.Time      `json:"created_at"`
 	UpdatedAt time.Time      `json:"updated_at"`
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
@@ -19,6 +19,11 @@ type PasswordEntry struct {
 	WallpaperS3Key string     `json:"wallpaper_s3_key"`
 	Password       string     `json:"password"`
 	EntropyScore   int        `json:"entropy_score"`
+
+	// Metadata
+	Name       string `json:"name"`
+	Username   string `json:"username"`
+	WebsiteURL string `json:"website_url"`
 }
 
 func (base *PasswordEntry) BeforeCreate(tx *gorm.DB) (err error) {

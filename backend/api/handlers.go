@@ -115,41 +115,21 @@ func (ctrl *Controller) HandleGeneratePassword(c *gin.Context) {
 	password := ctrl.KeyGenService.GeneratePassword(wallpaperData, passwordLength)
 	entropy := ctrl.KeyGenService.CalculateEntropyEstimate(password)
 
-	// 7. Save to DB
-	var userIDPtr *uuid.UUID
-	if val, exists := c.Get("user_id"); exists {
-		if uid, ok := val.(uuid.UUID); ok {
-			userIDPtr = &uid
-		}
-	}
-
-	entry := models.PasswordEntry{
-		S3Key:          key,
-		WallpaperS3Key: wpKey,
-		Password:       password,
-		EntropyScore:   entropy,
-		UserID:         userIDPtr,
-		GroupID:        req.GroupID, // Persist GroupID
-	}
-
-	if ctrl.DB != nil {
-		if err := ctrl.DB.Create(&entry).Error; err != nil {
-			fmt.Printf("Failed to save to DB: %v\n", err)
-		}
-	}
+	// 7. DO NOT Save to DB automatically.
+	// We just return the keys and data. Use HandleCreatePassword to save.
 
 	// 8. Construct Response
 	imgUrl, _ := ctrl.SourceS3.GeneratePresignedGETURL(key)
 	wpUrl, _ := ctrl.GeneratedS3.GeneratePresignedGETURL(wpKey)
 
 	c.JSON(http.StatusOK, gin.H{
-		"id":            entry.ID,
-		"password":      password,
-		"entropy_bits":  entropy,
-		"image_url":     imgUrl,
-		"wallpaper_url": wpUrl,
-		"created_at":    entry.CreatedAt,
-		"group_id":      entry.GroupID,
+		"password":         password,
+		"entropy_bits":     entropy,
+		"image_url":        imgUrl, // Preview URL
+		"wallpaper_url":    wpUrl,  // Preview URL
+		"s3_key":           key,    // To pass back on save
+		"wallpaper_s3_key": wpKey,  // To pass back on save
+		"created_at":       time.Now(),
 	})
 }
 
@@ -163,11 +143,13 @@ func (ctrl *Controller) HandleCreatePassword(c *gin.Context) {
 	}
 
 	type CreateRequest struct {
-		Password string     `json:"password"`
-		GroupID  *uuid.UUID `json:"group_id"`
-		// Could accept wallpaper_key if we allow reusing existing, but for now we won't.
-		// Or we could trigger a mocked wallpaper for manual entries?
-		// For simplicity, let's leave wallpaper empty or use a default if available.
+		Password       string     `json:"password"`
+		GroupID        *uuid.UUID `json:"group_id"`
+		Name           string     `json:"name"`
+		Username       string     `json:"username"`
+		WebsiteURL     string     `json:"website_url"`
+		S3Key          string     `json:"s3_key"`           // Optional
+		WallpaperS3Key string     `json:"wallpaper_s3_key"` // Optional
 	}
 
 	var req CreateRequest
@@ -180,11 +162,15 @@ func (ctrl *Controller) HandleCreatePassword(c *gin.Context) {
 	entropy := ctrl.KeyGenService.CalculateEntropyEstimate(req.Password)
 
 	entry := models.PasswordEntry{
-		Password:     req.Password,
-		EntropyScore: entropy,
-		UserID:       userIDPtr,
-		GroupID:      req.GroupID,
-		// S3Key / Wallpaper left empty for manual entries currently
+		Password:       req.Password,
+		EntropyScore:   entropy,
+		UserID:         userIDPtr,
+		GroupID:        req.GroupID,
+		Name:           req.Name,
+		Username:       req.Username,
+		WebsiteURL:     req.WebsiteURL,
+		S3Key:          req.S3Key,          // Persist if provided
+		WallpaperS3Key: req.WallpaperS3Key, // Persist if provided
 	}
 
 	if err := ctrl.DB.Create(&entry).Error; err != nil {
@@ -193,9 +179,12 @@ func (ctrl *Controller) HandleCreatePassword(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"id":       entry.ID,
-		"password": entry.Password,
-		"group_id": entry.GroupID,
+		"id":          entry.ID,
+		"password":    entry.Password,
+		"group_id":    entry.GroupID,
+		"name":        entry.Name,
+		"username":    entry.Username,
+		"website_url": entry.WebsiteURL,
 	})
 }
 
@@ -222,6 +211,9 @@ func (ctrl *Controller) HandleListPasswords(c *gin.Context) {
 		WallpaperURL string     `json:"wallpaper_url"`
 		Date         time.Time  `json:"created_at"`
 		GroupID      *uuid.UUID `json:"group_id"`
+		Name         string     `json:"name"`
+		Username     string     `json:"username"`
+		WebsiteURL   string     `json:"website_url"`
 	}
 
 	var response []ResponseEntry
@@ -237,6 +229,9 @@ func (ctrl *Controller) HandleListPasswords(c *gin.Context) {
 			WallpaperURL: url,
 			Date:         e.CreatedAt,
 			GroupID:      e.GroupID,
+			Name:         e.Name,
+			Username:     e.Username,
+			WebsiteURL:   e.WebsiteURL,
 		})
 	}
 
