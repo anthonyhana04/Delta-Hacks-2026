@@ -81,4 +81,13 @@ class AuthManager: ObservableObject {
             }
         }.resume()
     }
+
+    func signOut() {
+        GIDSignIn.sharedInstance.signOut()
+        DispatchQueue.main.async {
+            self.isLoggedIn = false
+            self.errorMessage = nil
+            print("User signed out successfully")
+        }
+    }
 }
