@@ -37,6 +37,9 @@ func InitDB() *gorm.DB {
 	if err := db.AutoMigrate(&models.VaultGroup{}); err != nil {
 		log.Printf("Failed to migrate VaultGroup: %v", err)
 	}
+	if err := db.AutoMigrate(&models.MFACode{}); err != nil {
+		log.Printf("Failed to migrate MFACode: %v", err)
+	}
 
 	return db
 }

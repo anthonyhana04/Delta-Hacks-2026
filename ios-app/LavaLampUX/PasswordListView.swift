@@ -4,10 +4,12 @@ struct PasswordListView: View {
     let groupID: UUID?
     let groupName: String
     let themeColor: Color
-    @Binding var allItems: [PasswordItem] 
-    
-    @State private var searchText = "" 
-    
+    @Binding var allItems: [PasswordItem]
+    var onDeleteGroup: (() -> Void)? = nil
+    @Environment(\.dismiss) var dismiss
+
+    @State private var searchText = ""
+
     // ... (Inline Add Form State remains matching original) ...
     @State private var isAdding = false
     @State private var newName = ""
@@ -21,10 +23,10 @@ struct PasswordListView: View {
             if let groupID = groupID {
                 return item.groupID == groupID
             } else {
-                return true // "All" group shows everything
+                return true  // "All" group shows everything
             }
         }
-        
+
         if searchText.isEmpty {
             return groupItems
         } else {
@@ -37,7 +39,7 @@ struct PasswordListView: View {
         // Re-declaring body to ensure context is safe
         ZStack {
             LavaLampBackground()
-            
+
             VStack(spacing: 0) {
                 // Search Bar
                 HStack {
@@ -70,7 +72,7 @@ struct PasswordListView: View {
                 ScrollView {
                     VStack(spacing: 8) {
                         // Inline Add Form (At Top)
-                         if isAdding {
+                        if isAdding {
                             VStack(spacing: 12) {
                                 Text("New Password in \(groupName)")
                                     .font(.headline)
@@ -102,10 +104,12 @@ struct PasswordListView: View {
                                             .cornerRadius(8)
                                     }
                                     .disabled(
-                                        newName.isEmpty || newUsername.isEmpty || newPassword.isEmpty
+                                        newName.isEmpty || newUsername.isEmpty
+                                            || newPassword.isEmpty
                                     )
                                     .opacity(
-                                        newName.isEmpty || newUsername.isEmpty || newPassword.isEmpty
+                                        newName.isEmpty || newUsername.isEmpty
+                                            || newPassword.isEmpty
                                             ? 0.5 : 1.0)
                                 }
                                 .padding(.top, 4)
@@ -126,7 +130,9 @@ struct PasswordListView: View {
                                         .font(.system(size: 20))
                                         .foregroundColor(.white)
                                     Text("Add Password")
-                                        .font(.system(size: 16, weight: .semibold, design: .rounded))
+                                        .font(
+                                            .system(size: 16, weight: .semibold, design: .rounded)
+                                        )
                                         .foregroundColor(.white)
                                 }
                                 .frame(maxWidth: .infinity)
@@ -140,7 +146,7 @@ struct PasswordListView: View {
                             }
                             .transition(.opacity)
                         }
-                        
+
                         // Items
                         ForEach(filteredItems) { item in
                             PasswordRow(
@@ -151,7 +157,7 @@ struct PasswordListView: View {
                             )
                             .transition(.opacity.combined(with: .scale))
                         }
-                        
+
                         // Empty State
                         if filteredItems.isEmpty && !isAdding {
                             VStack(spacing: 16) {
@@ -171,18 +177,34 @@ struct PasswordListView: View {
             }
             .navigationTitle(groupName)
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                if onDeleteGroup != nil {
+                    ToolbarItem(placement: .navigationBarTrailing) {
+                        Button(action: {
+                            onDeleteGroup?()
+                            dismiss()
+                        }) {
+                            Image(systemName: "trash")
+                                .foregroundColor(.red)
+                        }
+                    }
+                }
+            }
         }
-        .animation(.spring(), value: allItems) 
+        .animation(.spring(), value: allItems)
     }
-    
+
     private func deleteItem(_ item: PasswordItem) {
         // Call API
-        guard let url = URL(string: "http://localhost:8080/api/passwords/\(item.id.uuidString.lowercased())") else { return }
+        guard
+            let url = URL(
+                string: "http://localhost:8080/api/passwords/\(item.id.uuidString.lowercased())")
+        else { return }
         var request = URLRequest(url: url)
         request.httpMethod = "DELETE"
-        
+
         URLSession.shared.dataTask(with: request) { _, _, _ in }.resume()
-        
+
         if let index = allItems.firstIndex(where: { $0.id == item.id }) {
             withAnimation {
                 allItems.remove(at: index)
@@ -190,7 +212,7 @@ struct PasswordListView: View {
         }
     }
 
-   struct CreatePasswordRequest: Codable {
+    struct CreatePasswordRequest: Codable {
         let password: String
         let group_id: UUID?
         let name: String
@@ -206,37 +228,37 @@ struct PasswordListView: View {
 
     private func saveNewItem() {
         let requestBody = CreatePasswordRequest(
-            password: newPassword, 
+            password: newPassword,
             group_id: groupID,
             name: newName,
             username: newUsername,
             website_url: newUrl
         )
-        
+
         guard let url = URL(string: "http://localhost:8080/api/passwords") else { return }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try? JSONEncoder().encode(requestBody)
-        
+
         URLSession.shared.dataTask(with: request) { data, response, error in
             guard let data = data, error == nil else { return }
-            
+
             if let response = try? JSONDecoder().decode(CreatePasswordResponse.self, from: data) {
-                 DispatchQueue.main.async {
+                DispatchQueue.main.async {
                     let initial = self.newName.first.map { String($0).uppercased() } ?? "?"
-                    
+
                     let newItem = PasswordItem(
                         id: response.id,
                         groupID: response.group_id,
-                        name: self.newName, // These are local fields not in API response yet, but consistent
+                        name: self.newName,  // These are local fields not in API response yet, but consistent
                         username: self.newUsername,
                         password: response.password,
                         websiteUrl: self.newUrl,
                         brandColor: themeColor,
                         iconInitial: initial
                     )
-                    
+
                     withAnimation {
                         allItems.append(newItem)
                         isAdding = false

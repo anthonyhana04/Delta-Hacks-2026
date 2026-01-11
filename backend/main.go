@@ -38,6 +38,7 @@ func main() {
 	r.Use(sessions.Sessions("mysession", store))
 
 	ctrl := api.NewController()
+	ctrl.StartMFAGeneratorLoop()
 
 	r.GET("/ping", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{
@@ -62,6 +63,10 @@ func main() {
 		authorized.GET("/api/groups", ctrl.HandleListGroups)
 		authorized.POST("/api/groups", ctrl.HandleCreateGroup)
 		authorized.DELETE("/api/groups/:id", ctrl.HandleDeleteGroup)
+
+ // MFA Endpoints
+ authorized.GET("/api/mfa/generate", ctrl.HandleGenerateMFACode)
+
 	}
 
 	port := os.Getenv("PORT")

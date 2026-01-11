@@ -98,7 +98,10 @@ struct VaultView: View {
                                                     groupID: group.id,
                                                     groupName: group.name,
                                                     themeColor: group.color,
-                                                    allItems: $allPasswords
+                                                    allItems: $allPasswords,
+                                                    onDeleteGroup: {
+                                                        deleteGroup(group)
+                                                    }
                                                 )
                                             ) {
                                                 VaultGroupCard(
@@ -110,6 +113,7 @@ struct VaultView: View {
                                                     }.count
                                                 )
                                             }
+
                                             .buttonStyle(PlainButtonStyle())
                                             .contextMenu {
                                                 Button(role: .destructive) {
@@ -172,30 +176,27 @@ struct VaultView: View {
 
     private func deleteGroup(_ group: VaultGroup) {
         withAnimation {
-            if let index = groupManager.groups.firstIndex(where: { $0.id == group.id }) {
-                groupManager.groups.remove(at: index)
-                // Optional: What to do with items in this group?
-                // For now, keep them or reset groupID to nil?
-                // Current PasswordItem struct has Codable groupID.
-                // If we want to reset them to "All":
-                for i in allPasswords.indices {
-                    if allPasswords[i].groupID == group.id {
-                        allPasswords[i].groupID = nil
-                    }
+            // 1. Update local passwords to remove group association
+            for i in allPasswords.indices {
+                if allPasswords[i].groupID == group.id {
+                    allPasswords[i].groupID = nil
                 }
             }
+
+            // 2. Call Manager to handle API and list removal
+            groupManager.deleteGroup(group)
         }
     }
 
     // MARK: - API Fetching
     // MARK: - API Fetching
     struct PasswordResponseEntry: Codable {
-        let id: UUID 
+        let id: UUID
         let password: String
         let entropy_bits: Int64
-        let wallpaper_url: String 
+        let wallpaper_url: String
         let created_at: String
-        let group_id: UUID? 
+        let group_id: UUID?
         // New Metadata
         let name: String?
         let username: String?
@@ -228,13 +229,13 @@ struct VaultView: View {
                         PasswordItem(
                             id: entry.id,
                             groupID: entry.group_id,
-                            name: entry.name ?? "Generated Password", 
+                            name: entry.name ?? "Generated Password",
                             username: entry.username ?? "User",
                             password: entry.password,
-                            websiteUrl: entry.website_url ?? "", 
+                            websiteUrl: entry.website_url ?? "",
                             brandColor: .purple,
                             iconInitial: String((entry.name ?? "P").prefix(1)),
-                            wallpaperUrl: entry.wallpaper_url // Map the signed URL
+                            wallpaperUrl: entry.wallpaper_url  // Map the signed URL
                         )
                     }
                 }
