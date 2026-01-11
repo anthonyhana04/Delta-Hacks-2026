@@ -7,7 +7,7 @@ enum AppState {
 
 struct ContentView: View {
     @State private var appState: AppState = .login
-    
+
     var body: some View {
         ZStack {
             switch appState {
@@ -18,9 +18,9 @@ struct ContentView: View {
                     }
                 })
                 .transition(.opacity)
-                
+
             case .mainApp:
-                MainTabView()
+                VaultView()
                     .transition(.move(edge: .trailing))
             }
         }
