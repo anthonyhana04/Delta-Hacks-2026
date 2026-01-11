@@ -2,13 +2,15 @@ package services
 
 import (
 	"crypto/sha256"
+	"encoding/binary"
+	"fmt"
 )
 
 const (
-	CharsetAlpha = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
-	CharsetNum   = "0123456789"
+	CharsetAlpha   = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+	CharsetNum     = "0123456789"
 	CharsetSpecial = "!@#$%^&*()_+"
-	CharsetAll   = CharsetAlpha + CharsetNum + CharsetSpecial
+	CharsetAll     = CharsetAlpha + CharsetNum + CharsetSpecial
 )
 
 type KeyGenService struct{}
@@ -22,22 +24,31 @@ func (s *KeyGenService) GeneratePassword(imageData []byte, length int) string {
 		length = 16
 	}
 
-    hash := sha256.Sum256(imageData)
-    password := ""
-    currentHash := hash
-    
-    for i := 0; i < length; i++ {
-        if i > 0 && i % 32 == 0 {
-            currentHash = sha256.Sum256(currentHash[:])
-        }
-        b := currentHash[i % 32]
-        idx := int(b) % len(CharsetAll)
-        password += string(CharsetAll[idx])
-    }
-    
-    return password
+	hash := sha256.Sum256(imageData)
+	password := ""
+	currentHash := hash
+
+	for i := 0; i < length; i++ {
+		if i > 0 && i%32 == 0 {
+			currentHash = sha256.Sum256(currentHash[:])
+		}
+		b := currentHash[i%32]
+		idx := int(b) % len(CharsetAll)
+		password += string(CharsetAll[idx])
+	}
+
+	return password
 }
 
 func (s *KeyGenService) CalculateEntropyEstimate(password string) int {
-    return int(float64(len(password)) * 6.1)
+	return int(float64(len(password)) * 6.1)
+}
+
+func (s *KeyGenService) GenerateMFACode(imageData []byte) string {
+	hash := sha256.Sum256(imageData)
+	// Take first 4 bytes to form a uint32
+	val := binary.BigEndian.Uint32(hash[:4])
+	// Modulo 1,000,000 to get last 6 digits
+	code := val % 1000000
+	return fmt.Sprintf("%06d", code)
 }

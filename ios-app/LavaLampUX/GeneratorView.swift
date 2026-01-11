@@ -12,7 +12,7 @@ struct GeneratorView: View {
     @State private var s3Key: String?
     @State private var wallpaperS3Key: String?
     @State private var wallpaperURL: String?
-    
+
     // Save Sheet State
     @State private var showSaveSheet = false
     @State private var saveName = ""
@@ -26,11 +26,22 @@ struct GeneratorView: View {
             LavaLampBackground()
 
             VStack(spacing: 0) {
-                Spacer() // Push content to center
-                
+                // Header
+                HStack {
+                    Text("Generator")
+                        .font(.system(size: 34, weight: .bold, design: .rounded))
+                        .foregroundColor(.white)
+                    Spacer()
+                }
+                .padding(.horizontal, 24)
+                .padding(.top, 20)
+                .padding(.bottom, 10)
+
+                Spacer()  // Push content to center
+
                 // Main Content Card
                 VStack(spacing: 32) {
-                    
+
                     // 1. Password Display Area
                     VStack(spacing: 20) {
                         // Header Row with Controls
@@ -39,7 +50,7 @@ struct GeneratorView: View {
                                 .font(.system(size: 12, weight: .bold, design: .rounded))
                                 .tracking(2)
                                 .foregroundColor(.white.opacity(0.6))
-                            
+
                             if isGenerated {
                                 HStack {
                                     // Copy Button (Top Left)
@@ -53,9 +64,9 @@ struct GeneratorView: View {
                                             .background(Color.white.opacity(0.1))
                                             .clipShape(Circle())
                                     }
-                                    
+
                                     Spacer()
-                                    
+
                                     // Eye Button (Top Right)
                                     Button(action: { isVisible.toggle() }) {
                                         Image(systemName: isVisible ? "eye.slash.fill" : "eye.fill")
@@ -68,7 +79,7 @@ struct GeneratorView: View {
                                 }
                             }
                         }
-                        
+
                         ZStack {
                             if isGenerated {
                                 if isVisible {
@@ -99,7 +110,7 @@ struct GeneratorView: View {
                         RoundedRectangle(cornerRadius: 24)
                             .stroke(Color.white.opacity(0.1), lineWidth: 1)
                     )
-                    
+
                     // 2. Length Slider (Minimal)
                     VStack(alignment: .leading, spacing: 10) {
                         HStack {
@@ -111,12 +122,12 @@ struct GeneratorView: View {
                                 .font(.system(size: 16, weight: .bold, design: .monospaced))
                                 .foregroundColor(.white)
                         }
-                        
+
                         Slider(value: $length, in: 8...32, step: 1)
                             .tint(.white)
                     }
                     .padding(.horizontal, 10)
-                    
+
                     // 3. Action Buttons
                     VStack(spacing: 24) {
                         Button(action: {
@@ -131,7 +142,7 @@ struct GeneratorView: View {
                                 .cornerRadius(18)
                                 .shadow(color: .black.opacity(0.2), radius: 10, x: 0, y: 5)
                         }
-                        
+
                         if isGenerated {
                             HStack(spacing: 0) {
                                 Button(action: {
@@ -139,7 +150,7 @@ struct GeneratorView: View {
                                 }) {
                                     HStack {
                                         Image(systemName: "sparkles")
-                                        Text("View Entropy") 
+                                        Text("View Entropy")
                                     }
                                     .font(.system(size: 16, weight: .semibold))
                                     .foregroundColor(.white.opacity(0.9))
@@ -152,9 +163,9 @@ struct GeneratorView: View {
                                             .stroke(Color.white.opacity(0.15), lineWidth: 1)
                                     )
                                 }
-                                
+
                                 Spacer()
-                                
+
                                 Button(action: {
                                     showSaveSheet = true
                                 }) {
@@ -173,12 +184,12 @@ struct GeneratorView: View {
                     }
                 }
                 .padding(.horizontal, 32)
-                
+
                 Spacer()
-                Spacer() // Balance visual center upwards a bit
+                Spacer()  // Balance visual center upwards a bit
             }
-            .padding(.bottom, 80) // Space for Dock
- 
+            .padding(.bottom, 80)  // Space for Dock
+
             // Dock
         }
         .toolbar(.hidden)
@@ -190,14 +201,14 @@ struct GeneratorView: View {
                 Rectangle()
                     .fill(.ultraThinMaterial)
                     .edgesIgnoringSafeArea(.all)
-                
+
                 VStack(spacing: 24) {
                     Text("Entropy Source")
                         .font(.title3)
                         .fontWeight(.bold)
                         .foregroundColor(.white)
                         .padding(.top, 24)
-                    
+
                     if let urlString = wallpaperURL, let url = URL(string: urlString) {
                         AsyncImage(url: url) { phase in
                             switch phase {
@@ -218,15 +229,17 @@ struct GeneratorView: View {
                             }
                         }
                         .frame(maxHeight: 500)
-                        
-                        Text("This unique pattern was generated from chaotic lava lamp movements, providing true randomness for your key.")
-                            .font(.subheadline)
-                            .foregroundColor(.white.opacity(0.6))
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal, 32)
-                            .lineSpacing(4)
+
+                        Text(
+                            "This unique pattern was generated from chaotic lava lamp movements, providing true randomness for your key."
+                        )
+                        .font(.subheadline)
+                        .foregroundColor(.white.opacity(0.6))
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 32)
+                        .lineSpacing(4)
                     }
-                    
+
                     Spacer()
                 }
                 .padding()
@@ -242,7 +255,7 @@ struct GeneratorView: View {
                 Rectangle()
                     .fill(.ultraThinMaterial)
                     .edgesIgnoringSafeArea(.all)
-                
+
                 VStack(spacing: 0) {
                     // Header
                     Text("Save Password")
@@ -250,16 +263,16 @@ struct GeneratorView: View {
                         .foregroundColor(.white)
                         .padding(.top, 24)
                         .padding(.bottom, 32)
-                    
+
                     VStack(spacing: 20) {
                         CustomTextField(placeholder: "Website Name", text: $saveName)
                         CustomTextField(placeholder: "Website URL", text: $saveUrl)
                         CustomTextField(placeholder: "Username / Email", text: $saveUsername)
                     }
                     .padding(.horizontal, 24)
-                    
+
                     Spacer()
-                    
+
                     // Buttons
                     HStack(spacing: 16) {
                         Button(action: { showSaveSheet = false }) {
@@ -271,7 +284,7 @@ struct GeneratorView: View {
                                 .background(Color.white.opacity(0.1))
                                 .cornerRadius(16)
                         }
-                        
+
                         Button(action: savePassword) {
                             if isSaving {
                                 ProgressView().tint(.white)
@@ -306,7 +319,7 @@ struct GeneratorView: View {
         let s3_key: String
         let wallpaper_s3_key: String
     }
-    
+
     struct SaveRequest: Codable {
         let password: String
         let name: String
@@ -318,34 +331,34 @@ struct GeneratorView: View {
 
     private func generatePassword() {
         guard let url = URL(string: "http://localhost:8080/api/generate-password") else { return }
-        
+
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        
+
         let body: [String: Int] = ["length": Int(length)]
         request.httpBody = try? JSONSerialization.data(withJSONObject: body)
-        
+
         URLSession.shared.dataTask(with: request) { data, response, error in
             DispatchQueue.main.async {
                 if let error = error {
                     print("Generation Error: \(error.localizedDescription)")
                     return
                 }
-                
+
                 guard let data = data else { return }
-                
+
                 do {
                     let result = try JSONDecoder().decode(GenerationResponse.self, from: data)
-                    
+
                     self.password = result.password
                     self.wallpaperURL = result.wallpaper_url
                     self.s3Key = result.s3_key
                     self.wallpaperS3Key = result.wallpaper_s3_key
-                    
+
                     withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
                         self.isGenerated = true
-                        self.isVisible = false 
+                        self.isVisible = false
                     }
                 } catch {
                     print("Decoding Error: \(error)")
@@ -353,12 +366,12 @@ struct GeneratorView: View {
             }
         }.resume()
     }
-    
+
     private func savePassword() {
         guard let url = URL(string: "http://localhost:8080/api/passwords") else { return }
-        
+
         isSaving = true
-        
+
         let reqBody = SaveRequest(
             password: password,
             name: saveName,
@@ -367,12 +380,12 @@ struct GeneratorView: View {
             s3_key: s3Key,
             wallpaper_s3_key: wallpaperS3Key
         )
-        
+
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try? JSONEncoder().encode(reqBody)
-        
+
         URLSession.shared.dataTask(with: request) { _, _, error in
             DispatchQueue.main.async {
                 isSaving = false
@@ -382,7 +395,7 @@ struct GeneratorView: View {
                     saveName = ""
                     saveUsername = ""
                     saveUrl = ""
-                    
+
                     let generator = UINotificationFeedbackGenerator()
                     generator.notificationOccurred(.success)
                 }

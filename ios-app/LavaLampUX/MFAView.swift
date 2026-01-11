@@ -1,12 +1,19 @@
 import Combine
+import CryptoKit
 import SwiftUI
+import UIKit
 
 struct MFAItem: Identifiable {
     let id = UUID()
     let issuer: String
     let accountName: String
     let color: Color
-    var currentCode: String
+    // currentCode is now computed dynamically
+}
+
+struct MFAResponse: Codable {
+    let seed: String
+    let valid_until: String
 }
 
 struct MFAView: View {
@@ -20,13 +27,17 @@ struct MFAView: View {
     @State private var timeRemaining: Double = 60.0
     let timer = Timer.publish(every: 0.1, on: .main, in: .common).autoconnect()
 
+    // 2FA Logic State
+    @State private var currentBaseSeed: String = ""
+    @State private var nextBaseSeed: String? = nil
+    @State private var isFetching = false
+
     // Mock Data - Only 2 initially
     @State private var mfaItems: [MFAItem] = [
         MFAItem(
-            issuer: "Google", accountName: "anthonyhana04@gmail.com", color: .blue,
-            currentCode: "000 000"),
+            issuer: "Google", accountName: "anthonyhana04@gmail.com", color: .blue),
         MFAItem(
-            issuer: "Discord", accountName: "spiderboy#1234", color: .indigo, currentCode: "123 456"
+            issuer: "Discord", accountName: "spiderboy#1234", color: .indigo
         ),
     ]
 
@@ -120,9 +131,10 @@ struct MFAView: View {
                     VStack(spacing: 16) {
                         // Real Items (Filtered)
                         ForEach(filteredItems) { item in
+                            let code = deriveCode(item: item)
                             Button(action: {
                                 // Copy to Clipboard (removing spaces)
-                                let codeToCopy = item.currentCode.replacingOccurrences(
+                                let codeToCopy = code.replacingOccurrences(
                                     of: " ", with: "")
                                 UIPasteboard.general.string = codeToCopy
 
@@ -130,7 +142,7 @@ struct MFAView: View {
                                 let generator = UIImpactFeedbackGenerator(style: .medium)
                                 generator.impactOccurred()
                             }) {
-                                MFACard(item: item, timeRemaining: timeRemaining)
+                                MFACard(item: item, code: code, timeRemaining: timeRemaining)
                             }
                             .buttonStyle(FadeButtonStyle())
                         }
@@ -155,31 +167,100 @@ struct MFAView: View {
         }
         .toolbar(.hidden)
         .onAppear {
-            regenerateAllCodes()
+            fetchNextSeed()  // Initial fetch
         }
         .onReceive(timer) { _ in
-            if timeRemaining > 0 {
-                withAnimation(.linear(duration: 0.1)) {
-                    timeRemaining -= 0.1
+            // Persistent Timer Logic: Sync with System Clock
+            let now = Date()
+            let second = Calendar.current.component(.second, from: now)
+            // Optionally include nanoseconds for smoother animation if desired,
+            // but integer seconds + linear animation is usually fine.
+            // For smoother arc:
+            let nanosecond = Calendar.current.component(.nanosecond, from: now)
+            let accurateTime = Double(second) + Double(nanosecond) / 1_000_000_000.0
+
+            withAnimation(.linear(duration: 0.1)) {
+                timeRemaining = 60.0 - accurateTime
+            }
+
+            // Pre-fetch at 20s remaining (i.e., at 40s mark of the minute)
+            if timeRemaining <= 20.0 && timeRemaining > 19.5 && nextBaseSeed == nil && !isFetching {
+                print("Fetching next seed...")
+                fetchNextSeed()
+            }
+
+            // At the turn of the minute (approx 0s remaining), switch seeds
+            if timeRemaining < 0.2 {
+                if let next = nextBaseSeed {
+                    withAnimation {
+                        currentBaseSeed = next
+                    }
+                    nextBaseSeed = nil
+                    print("Updated to new seed: \(currentBaseSeed)")
+                } else {
+                    // Fallback: Try fetching again immediately if we missed it
+                    if !isFetching {
+                        print("No next seed ready, fetching now...")
+                        fetchNextSeed(isImmediate: true)
+                    }
                 }
-            } else {
-                timeRemaining = 60.0
-                regenerateAllCodes()
             }
         }
     }
 
-    private func regenerateAllCodes() {
-        for index in mfaItems.indices {
-            let n1 = Int.random(in: 100...999)
-            let n2 = Int.random(in: 100...999)
-            mfaItems[index].currentCode = "\(n1) \(n2)"
+    private func fetchNextSeed(isImmediate: Bool = false) {
+        guard !isFetching else { return }
+        isFetching = true
+
+        guard let url = URL(string: "http://localhost:8080/api/mfa/generate") else {
+            isFetching = false
+            return
         }
+
+        URLSession.shared.dataTask(with: url) { data, _, error in
+            DispatchQueue.main.async {
+                self.isFetching = false
+                if let error = error {
+                    print("MFA Fetch Error: \(error.localizedDescription)")
+                    return
+                }
+
+                if let data = data,
+                    let response = try? JSONDecoder().decode(MFAResponse.self, from: data)
+                {
+                    if self.currentBaseSeed.isEmpty || isImmediate {
+                        self.currentBaseSeed = response.seed
+                    } else {
+                        self.nextBaseSeed = response.seed
+                    }
+                }
+            }
+        }.resume()
+    }
+
+    private func deriveCode(item: MFAItem) -> String {
+        if currentBaseSeed.isEmpty { return "Generating..." }
+
+        let input = currentBaseSeed + item.issuer + item.accountName
+        guard let inputData = input.data(using: .utf8) else { return "000 000" }
+
+        let hashed = SHA256.hash(data: inputData)
+        // Use first 4 bytes to get an integer
+        let hashData = Data(hashed)
+        let value = hashData.withUnsafeBytes { $0.load(as: UInt32.self) }
+
+        // Ensure positive
+        let code = Int(value) % 1_000_000
+        let absCode = abs(code)
+
+        let str = String(format: "%06d", absCode)
+        return "\(str.prefix(3)) \(str.suffix(3))"
     }
 }
 
 struct MFACard: View {
     let item: MFAItem
+    let code: String
     let timeRemaining: Double
 
     var body: some View {
@@ -198,17 +279,22 @@ struct MFACard: View {
                 Text(item.accountName)
                     .font(.system(size: 14, weight: .medium))
                     .foregroundColor(.white.opacity(0.6))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.5)
             }
             .padding(.leading, 8)
 
             Spacer()
 
             // The Code
-            Text(item.currentCode)
-                .font(.system(size: 28, weight: .bold, design: .monospaced))
+            Text(code)
+                .font(
+                    .system(
+                        size: code == "Generating..." ? 18 : 28, weight: .bold, design: .monospaced)
+                )
                 .foregroundColor(timeRemaining < 10 ? .red : .white)
                 .contentTransition(.numericText())
-                .animation(.default, value: item.currentCode)
+                .animation(.default, value: code)
         }
         .padding(16)
         .background(Color(red: 0.1, green: 0.1, blue: 0.15))
@@ -354,19 +440,12 @@ struct AddMFASheet: View {
         let newItem = MFAItem(
             issuer: issuer,
             accountName: accountName,
-            color: selectedColor,
-            currentCode: generateCode()
+            color: selectedColor
         )
         withAnimation {
             mfaItems.append(newItem)
         }
         dismiss()
-    }
-
-    private func generateCode() -> String {
-        let n1 = Int.random(in: 100...999)
-        let n2 = Int.random(in: 100...999)
-        return "\(n1) \(n2)"
     }
 }
 

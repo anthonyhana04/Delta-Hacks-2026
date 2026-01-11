@@ -257,3 +257,92 @@ func (ctrl *Controller) HandleDeletePassword(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{"message": "Deleted"})
 }
+
+// StartMFAGeneratorLoop runs in the background to generate MFA seeds
+func (ctrl *Controller) StartMFAGeneratorLoop() {
+	ticker := time.NewTicker(30 * time.Second)
+	go func() {
+		for range ticker.C {
+			fmt.Println("Generating new MFA seed...")
+
+			// 1. Get latest image from Source S3
+			key, err := ctrl.SourceS3.GetLatestLavaLampImage()
+			if err != nil {
+				fmt.Printf("MFA Loop Error: Failed to get latest image: %v\n", err)
+				continue
+			}
+
+			// 2. Download Image
+			imgData, err := ctrl.SourceS3.DownloadImage(key)
+			if err != nil {
+				fmt.Printf("MFA Loop Error: Failed to download image: %v\n", err)
+				continue
+			}
+
+			// 3. Generate AI Wallpaper (optional but part of entropy flow)
+			var wallpaperData []byte
+			if ctrl.AIService != nil {
+				wallpaperData, err = ctrl.AIService.GenerateWallpaper(imgData)
+				if err != nil {
+					fmt.Printf("MFA Loop Error: AI Generation failed: %v\n", err)
+					// Fallback: use original image data if AI fails
+					wallpaperData = imgData
+				}
+			} else {
+				wallpaperData = imgData
+			}
+
+			// 4. Upload AI Result to Second Bucket
+			wpKey := "wallpaper_" + fmt.Sprintf("%d", time.Now().Unix()) + ".jpg"
+			_, err = ctrl.GeneratedS3.UploadImage(wpKey, wallpaperData)
+			if err != nil {
+				fmt.Printf("MFA Loop Error: Failed to upload wallpaper: %v\n", err)
+				// Continue anyway, maybe use original key as fallback?
+				// For now, let's just proceed with original key if upload fails for robustness,
+				// or maybe we should fail? Let's proceed but log.
+			} else {
+				// If upload succeeded, use the AI wallpaper key
+				key = wpKey
+			}
+
+			// 5. Generate Seed
+			seed := ctrl.KeyGenService.GenerateMFACode(wallpaperData)
+
+			// 6. Store in DB
+			code := models.MFACode{
+				Seed:      seed,
+				ImageURL:  key, // Stores the AI wallpaper key (or original if upload failed)
+				CreatedAt: time.Now(),
+				ExpiresAt: time.Now().Add(60 * time.Second),
+			}
+
+			if err := ctrl.DB.Create(&code).Error; err != nil {
+				fmt.Printf("MFA Loop Error: Failed to save to DB: %v\n", err)
+				continue
+			}
+
+			fmt.Printf("MFA Seed Generated: %s\n", seed)
+
+			// 7. Strict Cleanup: Delete ALL old codes immediately
+			// The user wants old codes gone as soon as a new one appears.
+			if err := ctrl.DB.Where("id != ?", code.ID).Delete(&models.MFACode{}).Error; err != nil {
+				fmt.Printf("MFA Loop Error: Failed to cleanup old codes: %v\n", err)
+			}
+		}
+	}()
+}
+
+// HandleGenerateMFACode returns the currently valid MFA seed
+func (ctrl *Controller) HandleGenerateMFACode(c *gin.Context) {
+	var code models.MFACode
+	// Find the latest valid code
+	if err := ctrl.DB.Where("expires_at > ?", time.Now()).Order("created_at desc").First(&code).Error; err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "No valid MFA code found (generating...)"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"seed":        code.Seed,
+		"valid_until": code.ExpiresAt,
+	})
+}

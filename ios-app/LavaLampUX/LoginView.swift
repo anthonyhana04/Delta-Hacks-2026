@@ -20,7 +20,7 @@ struct LoginView: View {
                         .frame(width: 420, height: 420)
                         .shadow(color: .black.opacity(0.3), radius: 10, x: 0, y: 5)
                 }
-                .padding(.top, 100)
+                .padding(.top, 130)
 
                 Spacer()
 

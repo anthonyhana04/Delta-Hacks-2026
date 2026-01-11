@@ -2,7 +2,7 @@ import SwiftUI
 
 enum TabItem: String, CaseIterable {
     case vaults = "Vaults"
-    case mfa = "MFA"
+    case mfa = "2FA"
     case generator = "Generator"
     case settings = "Settings"
 
@@ -37,7 +37,7 @@ struct DockView: View {
                 }
             }
             .padding(.horizontal, 16)
-            .padding(.vertical, 12)
+            .padding(.vertical, 10)
             .background(Color(red: 0.1, green: 0.1, blue: 0.15).opacity(0.8))
             .cornerRadius(35)
             .overlay(
@@ -67,19 +67,19 @@ struct DockButton: View {
         }) {
             VStack(spacing: 4) {
                 Image(systemName: tab.icon)
-                    .font(.system(size: 24, weight: .semibold))
+                    .font(.system(size: 22, weight: .semibold))
                     .foregroundColor(isSelected ? .white : .gray)
                     .scaleEffect(isSelected ? 1.1 : 1.0)
 
                 Text(tab.rawValue)
-                    .font(.system(size: 10, weight: .medium, design: .rounded))
+                    .font(.system(size: 9, weight: .medium, design: .rounded))
                     .foregroundColor(isSelected ? .white : .gray)
             }
-            .frame(width: 70, height: 70)  // Slightly increased size to fit text comfortable
+            .frame(width: 60, height: 60)
             .background(Color(red: 0.05, green: 0.05, blue: 0.1))
-            .cornerRadius(20)  // Adjusted radius for new size
+            .cornerRadius(18)
             .overlay(
-                RoundedRectangle(cornerRadius: 24)
+                RoundedRectangle(cornerRadius: 18)
                     .stroke(
                         isSelected ? Color.white.opacity(0.5) : Color.white.opacity(0.1),
                         lineWidth: 1)
