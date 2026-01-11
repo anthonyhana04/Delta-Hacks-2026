@@ -2,11 +2,11 @@ import SwiftUI
 
 struct SettingsView: View {
     @Binding var selectedTab: TabItem
+    @EnvironmentObject var authManager: AuthManager
 
     // Settings States
-    @State private var useBiometrics = true
-    @State private var notificationsEnabled = true
-    @State private var analyticsEnabled = false
+    @State private var useBiometrics = false
+    @State private var notificationsEnabled = false
     @State private var isPremium = true
 
     var body: some View {
@@ -30,32 +30,11 @@ struct SettingsView: View {
                     VStack {
                         VStack(spacing: 24) {
 
-                            // 1. Account & Membership
-                            SettingsSection(title: "Account & Membership") {
+                            // 1. Account
+                            SettingsSection(title: "Account") {
                                 SettingsRow(
                                     icon: "person.crop.circle.fill", color: .blue,
-                                    title: "Apple ID & Google", subtitle: "anthonyhana04@apple.com")
-                                SettingsRow(
-                                    icon: "person.2.fill", color: .purple, title: "Shared Accounts",
-                                    subtitle: "3 People Sharing")
-
-                                Divider().background(Color.white.opacity(0.1)).padding(
-                                    .horizontal, 16)
-
-                                HStack {
-                                    SettingsRow(
-                                        icon: "star.fill", color: .orange, title: "Membership",
-                                        subtitle: isPremium ? "Premium Active" : "Free Plan")
-                                    Spacer()
-                                    if !isPremium {
-                                        Text("UPGRADE")
-                                            .font(.system(size: 12, weight: .bold))
-                                            .padding(.horizontal, 12)
-                                            .padding(.vertical, 6)
-                                            .background(Color.orange)
-                                            .cornerRadius(8)
-                                    }
-                                }
+                                    title: "Sign in Method", subtitle: "Google")
                             }
 
                             // 2. Security & Privacy
@@ -63,30 +42,6 @@ struct SettingsView: View {
                                 ToggleRow(
                                     icon: "faceid", color: .green, title: "Biometric Unlock",
                                     isOn: $useBiometrics)
-                                SettingsRow(
-                                    icon: "key.fill", color: .yellow, title: "Password Management",
-                                    subtitle: "Update Master Key")
-
-                                Divider().background(Color.white.opacity(0.1)).padding(
-                                    .horizontal, 16)
-
-                                Button(action: {
-                                    // Action for emergency lock
-                                }) {
-                                    HStack {
-                                        Image(systemName: "lock.shield.fill")
-                                            .foregroundColor(.red)
-                                            .frame(width: 30)
-                                        Text("Emergency Vault Lock")
-                                            .foregroundColor(.red)
-                                        Spacer()
-                                        Image(systemName: "chevron.right")
-                                            .font(.system(size: 14))
-                                            .foregroundColor(.white.opacity(0.3))
-                                    }
-                                    .padding(.horizontal, 16)
-                                    .padding(.vertical, 12)
-                                }
                             }
 
                             // 3. App Preferences
@@ -94,9 +49,6 @@ struct SettingsView: View {
                                 ToggleRow(
                                     icon: "bell.fill", color: .red, title: "Notifications",
                                     isOn: $notificationsEnabled)
-                                ToggleRow(
-                                    icon: "chart.bar.fill", color: .blue, title: "Usage Analytics",
-                                    isOn: $analyticsEnabled)
                             }
 
                             // 4. Support & About
@@ -107,21 +59,32 @@ struct SettingsView: View {
                                 SettingsRow(
                                     icon: "envelope.fill", color: .cyan, title: "Contact Support",
                                     subtitle: "Get in touch")
-
-                                Divider().background(Color.white.opacity(0.1)).padding(
-                                    .horizontal, 16)
-
-                                HStack {
-                                    Text("Version")
-                                        .foregroundColor(.white.opacity(0.5))
-                                    Spacer()
-                                    Text("2.4.0 (Build 2026)")
-                                        .foregroundColor(.white.opacity(0.3))
-                                }
-                                .font(.system(size: 14))
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 12)
                             }
+
+                            // 5. Log Out
+                            SettingsSection(title: "Log Out") {
+                                Button(action: {
+                                    // Log out action
+                                    authManager.signOut()
+                                }) {
+                                    HStack {
+                                        Image(systemName: "rectangle.portrait.and.arrow.right")
+                                            .foregroundColor(.red)
+                                        Text("Log Out")
+                                            .foregroundColor(.red)
+                                            .font(.system(size: 16, weight: .medium))
+                                        Spacer()
+                                    }
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 12)
+                                }
+                            }
+
+                            // Version (Minimal, outside bubble)
+                            Text("Version 0.9.0 (Build 2026)")
+                                .font(.caption)
+                                .foregroundColor(.white.opacity(0.3))
+                                .padding(.top, 20)
 
                         }
                         .padding(.horizontal, 24)
@@ -255,5 +218,6 @@ struct ToggleRow: View {
 struct SettingsView_Previews: PreviewProvider {
     static var previews: some View {
         SettingsView(selectedTab: .constant(.settings))
+            .environmentObject(AuthManager())
     }
 }

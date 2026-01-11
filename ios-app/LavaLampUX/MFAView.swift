@@ -120,7 +120,19 @@ struct MFAView: View {
                     VStack(spacing: 16) {
                         // Real Items (Filtered)
                         ForEach(filteredItems) { item in
-                            MFACard(item: item, timeRemaining: timeRemaining)
+                            Button(action: {
+                                // Copy to Clipboard (removing spaces)
+                                let codeToCopy = item.currentCode.replacingOccurrences(
+                                    of: " ", with: "")
+                                UIPasteboard.general.string = codeToCopy
+
+                                // Haptic Feedback
+                                let generator = UIImpactFeedbackGenerator(style: .medium)
+                                generator.impactOccurred()
+                            }) {
+                                MFACard(item: item, timeRemaining: timeRemaining)
+                            }
+                            .buttonStyle(FadeButtonStyle())
                         }
 
                         // Blank Placeholders to fill screen (min 6 total items visualized)
@@ -386,5 +398,14 @@ struct MFATextField: View {
 struct MFAView_Previews: PreviewProvider {
     static var previews: some View {
         MFAView(selectedTab: .constant(.mfa))
+    }
+}
+
+struct FadeButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .opacity(configuration.isPressed ? 0.4 : 1.0)
+            .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
+            .animation(.easeInOut(duration: 0.1), value: configuration.isPressed)
     }
 }

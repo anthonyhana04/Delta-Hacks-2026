@@ -1,9 +1,8 @@
 import SwiftUI
 
 struct LoginView: View {
-    @StateObject private var authManager = AuthManager()
+    @EnvironmentObject var authManager: AuthManager
     @State private var isAnimating: Bool = false
-    var onLoginSuccess: () -> Void
 
     var body: some View {
         ZStack {
@@ -13,28 +12,15 @@ struct LoginView: View {
             VStack {
                 Spacer()
 
-                // Header Content
-                VStack(spacing: 8) {
+                // Logo Container
+                VStack(spacing: 20) {
                     Image("LavaLockLogo")
                         .resizable()
                         .aspectRatio(contentMode: .fit)
-                        .frame(width: 150, height: 150)
-                    // .foregroundColor removed to keep original colors
-
-                    Text("Secure. Simple. Yours.")
-                        .font(.system(size: 14, weight: .medium, design: .rounded))
-                        .foregroundColor(.white.opacity(0.9))
+                        .frame(width: 420, height: 420)
+                        .shadow(color: .black.opacity(0.3), radius: 10, x: 0, y: 5)
                 }
-                .padding(.vertical, 20)
-                .padding(.horizontal, 40)
-                .background(.ultraThinMaterial)  // Bubble background
-                .colorScheme(.dark)
-                .cornerRadius(40)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 40)
-                        .stroke(Color.white.opacity(0.2), lineWidth: 1)
-                )
-                .padding(.top, 60)
+                .padding(.top, 100)
 
                 Spacer()
 
@@ -57,9 +43,9 @@ struct LoginView: View {
                     VStack(spacing: 16) {
                         SocialLoginButton(
                             title: "Continue with Google",
-                            iconName: "globe",
-                            backgroundColor: .white,
-                            foregroundColor: .black,
+                            iconName: "google",
+                            backgroundColor: Color(red: 0.1, green: 0.1, blue: 0.15),
+                            foregroundColor: .white,
                             action: {
                                 print("Google Login Tapped")
                                 authManager.signInWithGoogle()
@@ -69,15 +55,16 @@ struct LoginView: View {
                         SocialLoginButton(
                             title: "Continue with Apple",
                             iconName: "applelogo",
-                            backgroundColor: Color(white: 0.2),
+                            backgroundColor: Color(red: 0.1, green: 0.1, blue: 0.15),
                             foregroundColor: .white,
                             action: {
                                 print("Apple Login Tapped")
-                                onLoginSuccess()
+                                // For Apple Login, we traditionally might toggle isLoggedIn manually if not fully implemented like Google
+                                // authManager.isLoggedIn = true
                             }
                         )
                     }
-                    .padding(.horizontal, 40)  // Increased padding to make buttons narrower
+                    .padding(.horizontal, 0)  // Full width allowed within card padding
 
                     HStack {
                         Rectangle()
@@ -91,7 +78,7 @@ struct LoginView: View {
                             .foregroundColor(.white.opacity(0.3))
                     }
                     .padding(.vertical, 10)
-                    .padding(.horizontal, 40)  // Match button width constraint
+                    .padding(.horizontal, 0)
 
                     Button(action: {
                         print("Create Account / Login Email Tapped")
@@ -112,21 +99,16 @@ struct LoginView: View {
                                 .stroke(Color.white.opacity(0.1), lineWidth: 1)
                         )
                     }
-                    .padding(.horizontal, 40)  // Alignment with other buttons
+                    .padding(.horizontal, 0)
                 }
                 .padding(.vertical, 30)  // Reduced internal vertical padding
                 .padding(.horizontal, 20)  // Reduced internal horizontal padding slightly
                 .background(.ultraThinMaterial)
                 .colorScheme(.dark)
                 .cornerRadius(30)
-                .padding(.horizontal, 40)  // Increased outer horizontal padding for slimmer card appearance
-                .padding(.bottom, 40)
+                .padding(.horizontal, 24)  // Extended closer to edges
+                .padding(.bottom, 120)  // Increased padding to push the block higher
                 // Removed shadow as requested
-            }
-        }
-        .onChange(of: authManager.isLoggedIn) { isLoggedIn in
-            if isLoggedIn {
-                onLoginSuccess()
             }
         }
     }
@@ -134,6 +116,7 @@ struct LoginView: View {
 
 struct LoginView_Previews: PreviewProvider {
     static var previews: some View {
-        LoginView(onLoginSuccess: {})
+        LoginView()
+            .environmentObject(AuthManager())
     }
 }

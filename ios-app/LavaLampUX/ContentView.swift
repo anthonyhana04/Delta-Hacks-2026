@@ -6,24 +6,20 @@ enum AppState {
 }
 
 struct ContentView: View {
-    @State private var appState: AppState = .login
+    @StateObject private var authManager = AuthManager()
 
     var body: some View {
         ZStack {
-            switch appState {
-            case .login:
-                LoginView(onLoginSuccess: {
-                    withAnimation {
-                        appState = .mainApp
-                    }
-                })
-                .transition(.opacity)
-
-            case .mainApp:
+            if !authManager.isLoggedIn {
+                LoginView()
+                    .transition(.opacity)
+            } else {
                 VaultView()
                     .transition(.move(edge: .trailing))
             }
         }
+        .environmentObject(authManager)
+        .animation(.easeInOut, value: authManager.isLoggedIn)
     }
 }
 
