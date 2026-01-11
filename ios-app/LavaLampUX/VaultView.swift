@@ -164,6 +164,7 @@ struct VaultView: View {
     }
     
     // MARK: - API Fetching
+    // MARK: - API Fetching
     struct PasswordResponseEntry: Codable {
         let id: UUID 
         let password: String
