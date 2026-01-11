@@ -8,6 +8,7 @@ import (
 	"github.com/anthonyhana04/Delta-Hacks-2026/backend/models"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"google.golang.org/api/idtoken"
 )
 
@@ -46,13 +47,17 @@ func (ctrl *Controller) HandleGoogleLogin(c *gin.Context) {
 	var user models.User
 	result := ctrl.DB.Where(&models.User{GoogleID: googleID}).First(&user)
 	if result.Error != nil {
-		// Create new user
+		// Create new user with explicit UUID
 		user = models.User{
+			ID:       uuid.New(),
 			GoogleID: googleID,
 			Email:    email,
 			Name:     name,
 		}
-		ctrl.DB.Create(&user)
+		if err := ctrl.DB.Create(&user).Error; err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create user"})
+			return
+		}
 	} else {
 		// Update user info
 		user.Email = email
@@ -62,7 +67,8 @@ func (ctrl *Controller) HandleGoogleLogin(c *gin.Context) {
 
 	// Create Session
 	session := sessions.Default(c)
-	session.Set("user_id", user.ID)
+	// Store UUID string in session to be safe with gob serialization
+	session.Set("user_id", user.ID.String())
 	session.Save()
 
 	c.JSON(http.StatusOK, gin.H{
@@ -74,9 +80,24 @@ func (ctrl *Controller) HandleGoogleLogin(c *gin.Context) {
 func (ctrl *Controller) AuthMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		session := sessions.Default(c)
-		userID := session.Get("user_id")
-		if userID == nil {
+		userIDStr := session.Get("user_id")
+		if userIDStr == nil {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Unauthorized"})
+			c.Abort()
+			return
+		}
+
+		// Parse UUID
+		idStr, ok := userIDStr.(string)
+		if !ok {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid session data"})
+			c.Abort()
+			return
+		}
+
+		userID, err := uuid.Parse(idStr)
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid User ID"})
 			c.Abort()
 			return
 		}

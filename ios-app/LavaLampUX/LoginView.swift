@@ -15,15 +15,11 @@ struct LoginView: View {
 
                 // Header Content
                 VStack(spacing: 8) {
-                    Image(systemName: "lock.shield.fill")
+                    Image("LavaLockLogo")
                         .resizable()
                         .aspectRatio(contentMode: .fit)
-                        .frame(width: 50, height: 50)
-                        .foregroundColor(.white)
-
-                    Text("LavaLamp")
-                        .font(.system(size: 36, weight: .bold, design: .rounded))
-                        .foregroundColor(.white)
+                        .frame(width: 150, height: 150)
+                    // .foregroundColor removed to keep original colors
 
                     Text("Secure. Simple. Yours.")
                         .font(.system(size: 14, weight: .medium, design: .rounded))

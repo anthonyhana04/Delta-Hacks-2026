@@ -9,7 +9,16 @@ struct GeneratorView: View {
     @State private var length = 16.0
     @State private var isImageVisible = false
     @State private var isGenerated = false
+    @State private var s3Key: String?
+    @State private var wallpaperS3Key: String?
     @State private var wallpaperURL: String?
+    
+    // Save Sheet State
+    @State private var showSaveSheet = false
+    @State private var saveName = ""
+    @State private var saveUsername = ""
+    @State private var saveUrl = ""
+    @State private var isSaving = false
 
     var body: some View {
         ZStack {
@@ -124,7 +133,7 @@ struct GeneratorView: View {
                         }
                         
                         if isGenerated {
-                            HStack(spacing: 0) { // spacing 0 to let Spacer do full separation
+                            HStack(spacing: 0) {
                                 Button(action: {
                                     isImageVisible = true
                                 }) {
@@ -135,7 +144,7 @@ struct GeneratorView: View {
                                     .font(.system(size: 16, weight: .semibold))
                                     .foregroundColor(.white.opacity(0.9))
                                     .padding(.vertical, 16)
-                                    .padding(.horizontal, 24) // Natural padding
+                                    .padding(.horizontal, 24)
                                     .background(Color.black.opacity(0.3))
                                     .cornerRadius(30)
                                     .overlay(
@@ -144,18 +153,17 @@ struct GeneratorView: View {
                                     )
                                 }
                                 
-                                Spacer() // Push buttons apart
+                                Spacer()
                                 
                                 Button(action: {
-                                    let generator = UINotificationFeedbackGenerator()
-                                    generator.notificationOccurred(.success)
+                                    showSaveSheet = true
                                 }) {
                                     Image(systemName: "square.and.arrow.down.fill")
                                         .font(.system(size: 20, weight: .bold))
                                         .foregroundColor(.white)
                                         .padding(.vertical, 14)
-                                        .padding(.horizontal, 24) // Natural padding
-                                        .frame(height: 52) 
+                                        .padding(.horizontal, 24)
+                                        .frame(height: 52)
                                         .background(Color.blue)
                                         .cornerRadius(30)
                                         .shadow(color: .blue.opacity(0.4), radius: 6, x: 0, y: 3)
@@ -170,22 +178,20 @@ struct GeneratorView: View {
                 Spacer() // Balance visual center upwards a bit
             }
             .padding(.bottom, 80) // Space for Dock
-
+ 
             // Dock
-            VStack {
-                Spacer()
-                DockView(selectedTab: $selectedTab)
-            }
         }
         .toolbar(.hidden)
         // Popup Sheet for Entropy Source
         .sheet(isPresented: $isImageVisible) {
             ZStack {
-                Color.black.edgesIgnoringSafeArea(.all)
+                // Glassy Background
+                Color.black.opacity(0.6).edgesIgnoringSafeArea(.all)
+                Rectangle()
+                    .fill(.ultraThinMaterial)
+                    .edgesIgnoringSafeArea(.all)
                 
                 VStack(spacing: 24) {
-                    // Manual Capsule Removed - using drag indicator
-                    
                     Text("Entropy Source")
                         .font(.title3)
                         .fontWeight(.bold)
@@ -196,8 +202,7 @@ struct GeneratorView: View {
                         AsyncImage(url: url) { phase in
                             switch phase {
                             case .empty:
-                                ProgressView()
-                                    .tint(.white)
+                                ProgressView().tint(.white)
                             case .success(let image):
                                 image.resizable()
                                     .aspectRatio(contentMode: .fit)
@@ -207,8 +212,7 @@ struct GeneratorView: View {
                                             .stroke(Color.white.opacity(0.1), lineWidth: 1)
                                     )
                             case .failure:
-                                Image(systemName: "exclamationmark.triangle")
-                                    .foregroundColor(.red)
+                                Image(systemName: "exclamationmark.triangle").foregroundColor(.red)
                             @unknown default:
                                 EmptyView()
                             }
@@ -230,6 +234,67 @@ struct GeneratorView: View {
             .presentationDetents([.medium])
             .presentationDragIndicator(.visible)
         }
+        // Save Sheet
+        .sheet(isPresented: $showSaveSheet) {
+            ZStack {
+                // Glassy Background
+                Color.black.opacity(0.6).edgesIgnoringSafeArea(.all)
+                Rectangle()
+                    .fill(.ultraThinMaterial)
+                    .edgesIgnoringSafeArea(.all)
+                
+                VStack(spacing: 0) {
+                    // Header
+                    Text("Save Password")
+                        .font(.headline)
+                        .foregroundColor(.white)
+                        .padding(.top, 24)
+                        .padding(.bottom, 32)
+                    
+                    VStack(spacing: 20) {
+                        CustomTextField(placeholder: "Website Name", text: $saveName)
+                        CustomTextField(placeholder: "Website URL", text: $saveUrl)
+                        CustomTextField(placeholder: "Username / Email", text: $saveUsername)
+                    }
+                    .padding(.horizontal, 24)
+                    
+                    Spacer()
+                    
+                    // Buttons
+                    HStack(spacing: 16) {
+                        Button(action: { showSaveSheet = false }) {
+                            Text("Cancel")
+                                .font(.system(size: 16, weight: .medium))
+                                .foregroundColor(.white.opacity(0.6))
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 16)
+                                .background(Color.white.opacity(0.1))
+                                .cornerRadius(16)
+                        }
+                        
+                        Button(action: savePassword) {
+                            if isSaving {
+                                ProgressView().tint(.white)
+                            } else {
+                                Text("Save to Vault")
+                                    .font(.system(size: 16, weight: .bold))
+                                    .foregroundColor(.white)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 16)
+                                    .background(Color.blue)
+                                    .cornerRadius(16)
+                                    .shadow(color: .blue.opacity(0.3), radius: 8, x: 0, y: 4)
+                            }
+                        }
+                        .disabled(saveName.isEmpty || saveUsername.isEmpty || isSaving)
+                        .opacity(saveName.isEmpty || saveUsername.isEmpty || isSaving ? 0.5 : 1.0)
+                    }
+                    .padding(24)
+                }
+            }
+            .presentationDetents([.medium])
+            .presentationDragIndicator(.visible)
+        }
     }
 
     // Response Model
@@ -238,6 +303,17 @@ struct GeneratorView: View {
         let image_url: String
         let wallpaper_url: String
         let entropy_bits: Int64
+        let s3_key: String
+        let wallpaper_s3_key: String
+    }
+    
+    struct SaveRequest: Codable {
+        let password: String
+        let name: String
+        let username: String
+        let website_url: String
+        let s3_key: String?
+        let wallpaper_s3_key: String?
     }
 
     private func generatePassword() {
@@ -247,7 +323,6 @@ struct GeneratorView: View {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         
-        // Send length
         let body: [String: Int] = ["length": Int(length)]
         request.httpBody = try? JSONSerialization.data(withJSONObject: body)
         
@@ -260,23 +335,56 @@ struct GeneratorView: View {
                 
                 guard let data = data else { return }
                 
-                // Debug response
-                if let str = String(data: data, encoding: .utf8) {
-                    print("Generation Response: \(str)")
-                }
-
                 do {
                     let result = try JSONDecoder().decode(GenerationResponse.self, from: data)
                     
                     self.password = result.password
                     self.wallpaperURL = result.wallpaper_url
+                    self.s3Key = result.s3_key
+                    self.wallpaperS3Key = result.wallpaper_s3_key
                     
                     withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
                         self.isGenerated = true
-                        self.isVisible = false // Hidden by default
+                        self.isVisible = false 
                     }
                 } catch {
                     print("Decoding Error: \(error)")
+                }
+            }
+        }.resume()
+    }
+    
+    private func savePassword() {
+        guard let url = URL(string: "http://localhost:8080/api/passwords") else { return }
+        
+        isSaving = true
+        
+        let reqBody = SaveRequest(
+            password: password,
+            name: saveName,
+            username: saveUsername,
+            website_url: saveUrl,
+            s3_key: s3Key,
+            wallpaper_s3_key: wallpaperS3Key
+        )
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try? JSONEncoder().encode(reqBody)
+        
+        URLSession.shared.dataTask(with: request) { _, _, error in
+            DispatchQueue.main.async {
+                isSaving = false
+                if error == nil {
+                    showSaveSheet = false
+                    // Reset form
+                    saveName = ""
+                    saveUsername = ""
+                    saveUrl = ""
+                    
+                    let generator = UINotificationFeedbackGenerator()
+                    generator.notificationOccurred(.success)
                 }
             }
         }.resume()

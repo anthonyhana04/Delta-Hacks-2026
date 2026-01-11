@@ -55,6 +55,13 @@ func main() {
 		// Main interaction endpoint
 		authorized.POST("/api/generate-password", ctrl.HandleGeneratePassword)
 		authorized.GET("/api/my-passwords", ctrl.HandleListPasswords)
+		authorized.POST("/api/passwords", ctrl.HandleCreatePassword)
+		authorized.DELETE("/api/passwords/:id", ctrl.HandleDeletePassword)
+
+		// Group Endpoints
+		authorized.GET("/api/groups", ctrl.HandleListGroups)
+		authorized.POST("/api/groups", ctrl.HandleCreateGroup)
+		authorized.DELETE("/api/groups/:id", ctrl.HandleDeleteGroup)
 	}
 
 	port := os.Getenv("PORT")

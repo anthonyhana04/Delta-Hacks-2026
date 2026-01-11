@@ -10,6 +10,7 @@ import (
 	"github.com/anthonyhana04/Delta-Hacks-2026/backend/models"
 	"github.com/anthonyhana04/Delta-Hacks-2026/backend/services"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
@@ -58,9 +59,10 @@ func NewController() *Controller {
 
 // HandleGeneratePassword is the main flow
 func (ctrl *Controller) HandleGeneratePassword(c *gin.Context) {
-	// 1. Parse Request Body for optional Length
+	// 1. Parse Request Body for optional Length and GroupID
 	type GenerateRequest struct {
-		Length int `json:"length"`
+		Length  int        `json:"length"`
+		GroupID *uuid.UUID `json:"group_id"` // Optional UUID
 	}
 	var req GenerateRequest
 	// Ignore error if body is empty or malformed, just default to 20
@@ -113,39 +115,76 @@ func (ctrl *Controller) HandleGeneratePassword(c *gin.Context) {
 	password := ctrl.KeyGenService.GeneratePassword(wallpaperData, passwordLength)
 	entropy := ctrl.KeyGenService.CalculateEntropyEstimate(password)
 
-	// 6. Save to DB
-	var userIDPtr *uint
-	if val, exists := c.Get("user_id"); exists {
-		if uid, ok := val.(uint); ok {
-			userIDPtr = &uid
-		}
-	}
+	// 7. DO NOT Save to DB automatically.
+	// We just return the keys and data. Use HandleCreatePassword to save.
 
-	entry := models.PasswordEntry{
-		S3Key:          key,
-		WallpaperS3Key: wpKey,
-		Password:       password,
-		EntropyScore:   entropy,
-		UserID:         userIDPtr,
-	}
-
-	if ctrl.DB != nil {
-		if err := ctrl.DB.Create(&entry).Error; err != nil {
-			fmt.Printf("Failed to save to DB: %v\n", err)
-		}
-	}
-
-	// 7. Construct Response with Signed URLs
+	// 8. Construct Response
 	imgUrl, _ := ctrl.SourceS3.GeneratePresignedGETURL(key)
 	wpUrl, _ := ctrl.GeneratedS3.GeneratePresignedGETURL(wpKey)
 
 	c.JSON(http.StatusOK, gin.H{
-		"id":            entry.ID,
-		"password":      password,
-		"entropy_bits":  entropy,
-		"image_url":     imgUrl,
-		"wallpaper_url": wpUrl,
-		"created_at":    entry.CreatedAt,
+		"password":         password,
+		"entropy_bits":     entropy,
+		"image_url":        imgUrl, // Preview URL
+		"wallpaper_url":    wpUrl,  // Preview URL
+		"s3_key":           key,    // To pass back on save
+		"wallpaper_s3_key": wpKey,  // To pass back on save
+		"created_at":       time.Now(),
+	})
+}
+
+// HandleCreatePassword allows manual creation of passwords (e.g. from Vault)
+func (ctrl *Controller) HandleCreatePassword(c *gin.Context) {
+	var userIDPtr *uuid.UUID
+	if val, exists := c.Get("user_id"); exists {
+		if uid, ok := val.(uuid.UUID); ok {
+			userIDPtr = &uid
+		}
+	}
+
+	type CreateRequest struct {
+		Password       string     `json:"password"`
+		GroupID        *uuid.UUID `json:"group_id"`
+		Name           string     `json:"name"`
+		Username       string     `json:"username"`
+		WebsiteURL     string     `json:"website_url"`
+		S3Key          string     `json:"s3_key"`           // Optional
+		WallpaperS3Key string     `json:"wallpaper_s3_key"` // Optional
+	}
+
+	var req CreateRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid body"})
+		return
+	}
+
+	// We check entropy for manual passwords too
+	entropy := ctrl.KeyGenService.CalculateEntropyEstimate(req.Password)
+
+	entry := models.PasswordEntry{
+		Password:       req.Password,
+		EntropyScore:   entropy,
+		UserID:         userIDPtr,
+		GroupID:        req.GroupID,
+		Name:           req.Name,
+		Username:       req.Username,
+		WebsiteURL:     req.WebsiteURL,
+		S3Key:          req.S3Key,          // Persist if provided
+		WallpaperS3Key: req.WallpaperS3Key, // Persist if provided
+	}
+
+	if err := ctrl.DB.Create(&entry).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to create password"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"id":          entry.ID,
+		"password":    entry.Password,
+		"group_id":    entry.GroupID,
+		"name":        entry.Name,
+		"username":    entry.Username,
+		"website_url": entry.WebsiteURL,
 	})
 }
 
@@ -156,7 +195,7 @@ func (ctrl *Controller) HandleListPasswords(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "User ID not found in context"})
 		return
 	}
-	userID := userIDInterface.(uint)
+	userID := userIDInterface.(uuid.UUID)
 
 	var entries []models.PasswordEntry
 	if err := ctrl.DB.Where("user_id = ?", userID).Order("created_at desc").Find(&entries).Error; err != nil {
@@ -164,26 +203,57 @@ func (ctrl *Controller) HandleListPasswords(c *gin.Context) {
 		return
 	}
 
-	// Presign URLs for all entries
+	// Presign URLs
 	type ResponseEntry struct {
-		ID           uint      `json:"id"`
-		Password     string    `json:"password"`
-		Entropy      int64     `json:"entropy_bits"`
-		WallpaperURL string    `json:"wallpaper_url"`
-		Date         time.Time `json:"created_at"`
+		ID           uuid.UUID  `json:"id"`
+		Password     string     `json:"password"`
+		Entropy      int64      `json:"entropy_bits"`
+		WallpaperURL string     `json:"wallpaper_url"`
+		Date         time.Time  `json:"created_at"`
+		GroupID      *uuid.UUID `json:"group_id"`
+		Name         string     `json:"name"`
+		Username     string     `json:"username"`
+		WebsiteURL   string     `json:"website_url"`
 	}
 
 	var response []ResponseEntry
 	for _, e := range entries {
-		url, _ := ctrl.GeneratedS3.GeneratePresignedGETURL(e.WallpaperS3Key)
+		url := ""
+		if e.WallpaperS3Key != "" {
+			url, _ = ctrl.GeneratedS3.GeneratePresignedGETURL(e.WallpaperS3Key)
+		}
 		response = append(response, ResponseEntry{
 			ID:           e.ID,
 			Password:     e.Password,
 			Entropy:      int64(e.EntropyScore),
 			WallpaperURL: url,
 			Date:         e.CreatedAt,
+			GroupID:      e.GroupID,
+			Name:         e.Name,
+			Username:     e.Username,
+			WebsiteURL:   e.WebsiteURL,
 		})
 	}
 
 	c.JSON(http.StatusOK, response)
+}
+
+// HandleDeletePassword deletes a single password entry
+func (ctrl *Controller) HandleDeletePassword(c *gin.Context) {
+	idStr := c.Param("id")
+	id, err := uuid.Parse(idStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid ID"})
+		return
+	}
+
+	userIDInterface, _ := c.Get("user_id")
+	userID := userIDInterface.(uuid.UUID)
+
+	if err := ctrl.DB.Where("id = ? AND user_id = ?", id, userID).Delete(&models.PasswordEntry{}).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete password"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Deleted"})
 }
