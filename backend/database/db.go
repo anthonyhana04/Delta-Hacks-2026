@@ -28,11 +28,9 @@ func InitDB() *gorm.DB {
 
 	// Auto Migrate
 	log.Println("Migrating database schema...")
-    // Migrate User first
-    if err := db.AutoMigrate(&models.User{}); err != nil {
-       log.Printf("Failed to migrate User: %v", err)
-    }
-    // Then PasswordEntry
+	if err := db.AutoMigrate(&models.User{}); err != nil {
+		log.Printf("Failed to migrate User: %v", err)
+	}
 	if err := db.AutoMigrate(&models.PasswordEntry{}); err != nil {
 		log.Printf("Failed to migrate PasswordEntry: %v", err)
 	}
