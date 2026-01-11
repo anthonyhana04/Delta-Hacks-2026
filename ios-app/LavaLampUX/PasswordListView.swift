@@ -198,7 +198,7 @@ struct PasswordListView: View {
         // Call API
         guard
             let url = URL(
-                string: "http://localhost:8080/api/passwords/\(item.id.uuidString.lowercased())")
+                string: "\(APIConfig.baseURL)/api/passwords/\(item.id.uuidString.lowercased())")
         else { return }
         var request = URLRequest(url: url)
         request.httpMethod = "DELETE"
@@ -235,7 +235,7 @@ struct PasswordListView: View {
             website_url: newUrl
         )
 
-        guard let url = URL(string: "http://localhost:8080/api/passwords") else { return }
+        guard let url = URL(string: "\(APIConfig.baseURL)/api/passwords") else { return }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")

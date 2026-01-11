@@ -212,7 +212,7 @@ struct MFAView: View {
         guard !isFetching else { return }
         isFetching = true
 
-        guard let url = URL(string: "http://localhost:8080/api/mfa/generate") else {
+        guard let url = URL(string: "\(APIConfig.baseURL)/api/mfa/generate") else {
             isFetching = false
             return
         }

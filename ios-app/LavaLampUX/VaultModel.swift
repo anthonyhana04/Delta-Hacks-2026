@@ -85,7 +85,7 @@ class VaultGroupManager: ObservableObject {
     @Published var groups: [VaultGroup] = []
     
     // In a real app, use a configuration or env var
-    private let baseURL = "http://localhost:8080/api"
+    private let baseURL = "\(APIConfig.baseURL)/api"
     
     init() {
         // We load groups on init or View can trigger it

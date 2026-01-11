@@ -19,6 +19,11 @@ struct GeneratorView: View {
     @State private var saveUsername = ""
     @State private var saveUrl = ""
     @State private var isSaving = false
+    @State private var isGenerating = false
+    
+    // Vault Selection
+    @StateObject private var groupManager = VaultGroupManager()
+    @State private var selectedGroupID: UUID?
 
     var body: some View {
         ZStack {
@@ -130,17 +135,23 @@ struct GeneratorView: View {
 
                     // 3. Action Buttons
                     VStack(spacing: 24) {
-                        Button(action: {
-                            generatePassword()
-                        }) {
-                            Text(isGenerated ? "Regenerate" : "Generate Password")
-                                .font(.system(size: 18, weight: .bold, design: .rounded))
-                                .foregroundColor(.black)
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 18)
-                                .background(Color.white)
-                                .cornerRadius(18)
-                                .shadow(color: .black.opacity(0.2), radius: 10, x: 0, y: 5)
+                        if isGenerating {
+                            LavaLoadingBar()
+                                .transition(.opacity)
+                        } else {
+                            Button(action: {
+                                generatePassword()
+                            }) {
+                                Text(isGenerated ? "Regenerate" : "Generate Password")
+                                    .font(.system(size: 18, weight: .bold, design: .rounded))
+                                    .foregroundColor(.black)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 18)
+                                    .background(Color.white)
+                                    .cornerRadius(18)
+                                    .shadow(color: .black.opacity(0.2), radius: 10, x: 0, y: 5)
+                            }
+                            .transition(.scale)
                         }
 
                         if isGenerated {
@@ -268,6 +279,24 @@ struct GeneratorView: View {
                         CustomTextField(placeholder: "Website Name", text: $saveName)
                         CustomTextField(placeholder: "Website URL", text: $saveUrl)
                         CustomTextField(placeholder: "Username / Email", text: $saveUsername)
+                        
+                        // Vault Picker
+                        HStack {
+                            Text("Vault Group")
+                                .foregroundColor(.white.opacity(0.7))
+                            Spacer()
+                            Picker("Vault", selection: $selectedGroupID) {
+                                Text("None").tag(UUID?.none)
+                                ForEach(groupManager.groups) { group in
+                                    Text(group.name).tag(UUID?.some(group.id))
+                                }
+                            }
+                            .tint(.white)
+                            .onAppear {
+                                groupManager.fetchGroups()
+                            }
+                        }
+                        .padding(.vertical, 8)
                     }
                     .padding(.horizontal, 24)
 
@@ -327,10 +356,14 @@ struct GeneratorView: View {
         let website_url: String
         let s3_key: String?
         let wallpaper_s3_key: String?
+        let group_id: UUID?
     }
 
     private func generatePassword() {
-        guard let url = URL(string: "http://localhost:8080/api/generate-password") else { return }
+        guard let url = URL(string: "\(APIConfig.baseURL)/api/generate-password") else { return }
+
+        // Start Loading
+        withAnimation { isGenerating = true }
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
@@ -341,6 +374,9 @@ struct GeneratorView: View {
 
         URLSession.shared.dataTask(with: request) { data, response, error in
             DispatchQueue.main.async {
+                // Stop Loading regardless of outcome
+                withAnimation { isGenerating = false }
+                
                 if let error = error {
                     print("Generation Error: \(error.localizedDescription)")
                     return
@@ -368,7 +404,7 @@ struct GeneratorView: View {
     }
 
     private func savePassword() {
-        guard let url = URL(string: "http://localhost:8080/api/passwords") else { return }
+        guard let url = URL(string: "\(APIConfig.baseURL)/api/passwords") else { return }
 
         isSaving = true
 
@@ -378,7 +414,8 @@ struct GeneratorView: View {
             username: saveUsername,
             website_url: saveUrl,
             s3_key: s3Key,
-            wallpaper_s3_key: wallpaperS3Key
+            wallpaper_s3_key: wallpaperS3Key,
+            group_id: selectedGroupID
         )
 
         var request = URLRequest(url: url)

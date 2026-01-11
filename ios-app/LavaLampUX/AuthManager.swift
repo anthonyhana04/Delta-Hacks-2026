@@ -11,7 +11,7 @@ class AuthManager: ObservableObject {
     // Ensure this matches the one in Google Cloud Console and your Info.plist
     private let clientID =
         "298946968148-nrp0n4vuperdcifgbkjnjgrg4sjvuoap.apps.googleusercontent.com"
-    private let backendURL = "http://localhost:8080/auth/google"
+    private let backendURL = "\(APIConfig.baseURL)/auth/google"
 
     func signInWithGoogle() {
         guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,

@@ -164,6 +164,7 @@ struct VaultView: View {
                 Spacer()
                 DockView(selectedTab: tabSelectionBinding)
             }
+            .ignoresSafeArea(.keyboard, edges: .bottom)
         }
         .sheet(isPresented: $showAddVaultSheet) {
             AddVaultSheet { newGroup in
@@ -172,6 +173,19 @@ struct VaultView: View {
             }
         }
         .animation(.easeInOut(duration: 0.35), value: selectedTab)
+
+    }
+
+    private func switchTab(direction: Int) {
+        let allTabs = TabItem.allCases
+        guard let currentIndex = allTabs.firstIndex(of: selectedTab) else { return }
+        
+        // Calculate new index with boundary checks
+        let newIndex = currentIndex + direction
+        
+        if newIndex >= 0 && newIndex < allTabs.count {
+            selectedTab = allTabs[newIndex]
+        }
     }
 
     private func deleteGroup(_ group: VaultGroup) {
@@ -206,7 +220,7 @@ struct VaultView: View {
     private func fetchPasswords() {
         groupManager.fetchGroups()  // Also fetch groups!
 
-        guard let url = URL(string: "http://localhost:8080/api/my-passwords") else { return }
+        guard let url = URL(string: "\(APIConfig.baseURL)/api/my-passwords") else { return }
 
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
