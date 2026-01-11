@@ -188,13 +188,18 @@ struct VaultView: View {
     }
 
     // MARK: - API Fetching
+    // MARK: - API Fetching
     struct PasswordResponseEntry: Codable {
-        let id: UUID  // Changed from Int to UUID
+        let id: UUID 
         let password: String
         let entropy_bits: Int64
-        let wallpaper_url: String
+        let wallpaper_url: String 
         let created_at: String
-        let group_id: UUID?  // Changed from Int? to UUID?
+        let group_id: UUID? 
+        // New Metadata
+        let name: String?
+        let username: String?
+        let website_url: String?
     }
 
     private func fetchPasswords() {
@@ -223,12 +228,13 @@ struct VaultView: View {
                         PasswordItem(
                             id: entry.id,
                             groupID: entry.group_id,
-                            name: "Generated Password",
-                            username: "User",
+                            name: entry.name ?? "Generated Password", 
+                            username: entry.username ?? "User",
                             password: entry.password,
-                            websiteUrl: entry.wallpaper_url,
+                            websiteUrl: entry.website_url ?? "", 
                             brandColor: .purple,
-                            iconInitial: "P"
+                            iconInitial: String((entry.name ?? "P").prefix(1)),
+                            wallpaperUrl: entry.wallpaper_url // Map the signed URL
                         )
                     }
                 }

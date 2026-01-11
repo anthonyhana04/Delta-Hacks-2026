@@ -193,6 +193,9 @@ struct PasswordListView: View {
    struct CreatePasswordRequest: Codable {
         let password: String
         let group_id: UUID?
+        let name: String
+        let username: String
+        let website_url: String
     }
 
     struct CreatePasswordResponse: Codable {
@@ -202,7 +205,13 @@ struct PasswordListView: View {
     }
 
     private func saveNewItem() {
-        let requestBody = CreatePasswordRequest(password: newPassword, group_id: groupID)
+        let requestBody = CreatePasswordRequest(
+            password: newPassword, 
+            group_id: groupID,
+            name: newName,
+            username: newUsername,
+            website_url: newUrl
+        )
         
         guard let url = URL(string: "http://localhost:8080/api/passwords") else { return }
         var request = URLRequest(url: url)

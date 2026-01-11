@@ -21,6 +21,13 @@ struct VaultGroup: Identifiable, Codable, Hashable {
     
     // Default Groups helper
     static let allGroupsId = UUID(uuidString: "00000000-0000-0000-0000-000000000000")!
+    
+    enum CodingKeys: String, CodingKey {
+        case id
+        case name
+        case icon
+        case colorHex = "color"
+    }
 }
 
 // 2. Password Item Model
@@ -35,11 +42,16 @@ struct PasswordItem: Identifiable, Codable, Equatable {
     var brandColorHex: String
     var iconInitial: String
     
+    // New fields for generated passwords
+    var s3Key: String?
+    var wallpaperS3Key: String?
+    var wallpaperUrl: String? // Signed URL from backend
+    
     var brandColor: Color {
         Color(hex: brandColorHex) ?? .gray
     }
     
-    init(id: UUID = UUID(), groupID: UUID? = nil, name: String, username: String, password: String, websiteUrl: String, brandColor: Color, iconInitial: String) {
+    init(id: UUID = UUID(), groupID: UUID? = nil, name: String, username: String, password: String, websiteUrl: String, brandColor: Color, iconInitial: String, s3Key: String? = nil, wallpaperS3Key: String? = nil, wallpaperUrl: String? = nil) {
         self.id = id
         self.groupID = groupID
         self.name = name
@@ -48,6 +60,23 @@ struct PasswordItem: Identifiable, Codable, Equatable {
         self.websiteUrl = websiteUrl
         self.brandColorHex = brandColor.toHex() ?? "#808080"
         self.iconInitial = iconInitial
+        self.s3Key = s3Key
+        self.wallpaperS3Key = wallpaperS3Key
+        self.wallpaperUrl = wallpaperUrl
+    }
+    
+    enum CodingKeys: String, CodingKey {
+        case id
+        case groupID
+        case name
+        case username
+        case password
+        case websiteUrl = "website_url"
+        case brandColorHex = "brand_color"
+        case iconInitial = "icon_initial"
+        case s3Key = "s3_key"
+        case wallpaperS3Key = "wallpaper_s3_key"
+        case wallpaperUrl = "wallpaper_url"
     }
 }
 

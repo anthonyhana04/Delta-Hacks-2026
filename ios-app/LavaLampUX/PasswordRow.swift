@@ -6,6 +6,7 @@ struct PasswordRow: View {
     
     @State private var isExpanded: Bool = false
     @State private var isPasswordVisible: Bool = false
+    @State private var showWallpaper: Bool = false
     
     var body: some View {
         VStack(spacing: 0) {
@@ -17,14 +18,27 @@ struct PasswordRow: View {
             }) {
                 HStack(spacing: 16) {
                     // Icon
-                    ZStack {
-                        Circle()
-                            .fill(item.brandColor)
-                            .frame(width: 44, height: 44)
+                    ZStack(alignment: .bottomTrailing) {
+                        ZStack {
+                            Circle()
+                                .fill(item.brandColor)
+                                .frame(width: 44, height: 44)
+                            
+                            Text(item.iconInitial)
+                                .font(.system(size: 20, weight: .bold, design: .rounded))
+                                .foregroundColor(.white)
+                        }
                         
-                        Text(item.iconInitial)
-                            .font(.system(size: 20, weight: .bold, design: .rounded))
-                            .foregroundColor(.white)
+                        // Wallpaper Indicator
+                         if item.wallpaperUrl != nil && !item.wallpaperUrl!.isEmpty {
+                            Image(systemName: "sparkles")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundColor(.yellow)
+                                .padding(4)
+                                .background(Color.black)
+                                .clipShape(Circle())
+                                .offset(x: 4, y: 4)
+                        }
                     }
                     .shadow(color: item.brandColor.opacity(0.4), radius: 5, x: 0, y: 3)
                     
@@ -97,6 +111,24 @@ struct PasswordRow: View {
                                 .foregroundColor(.blue)
                         }
                     }
+                    
+                    // Wallpaper View Button
+                    if let wpUrl = item.wallpaperUrl, !wpUrl.isEmpty {
+                        Divider().background(Color.white.opacity(0.1))
+                        
+                        Button(action: { showWallpaper = true }) {
+                            HStack {
+                                Image(systemName: "photo.fill")
+                                Text("View Entropy Source")
+                            }
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(.white)
+                            .padding(.vertical, 8)
+                            .frame(maxWidth: .infinity)
+                            .background(Color.white.opacity(0.1))
+                            .cornerRadius(8)
+                        }
+                    }
                 }
                 .padding(.horizontal, 16)
                 .padding(.bottom, 16)
@@ -109,6 +141,58 @@ struct PasswordRow: View {
             RoundedRectangle(cornerRadius: 16)
                 .stroke(Color.white.opacity(0.1), lineWidth: 1)
         )
+        // Wallpaper Viewer Sheet
+        .sheet(isPresented: $showWallpaper) {
+            ZStack {
+                // Glassy Background
+                Color.black.opacity(0.6).edgesIgnoringSafeArea(.all)
+                Rectangle()
+                    .fill(.ultraThinMaterial)
+                    .edgesIgnoringSafeArea(.all)
+                
+                VStack(spacing: 24) {
+                    Text("Entropy Source")
+                        .font(.title3)
+                        .fontWeight(.bold)
+                        .foregroundColor(.white)
+                        .padding(.top, 24)
+                        
+                    if let url = URL(string: item.wallpaperUrl ?? "") {
+                        AsyncImage(url: url) { phase in
+                             switch phase {
+                             case .empty:
+                                 ProgressView().tint(.white)
+                             case .success(let image):
+                                 image.resizable()
+                                     .aspectRatio(contentMode: .fit)
+                                     .cornerRadius(16)
+                                     .overlay(
+                                         RoundedRectangle(cornerRadius: 16)
+                                             .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                                     )
+                             case .failure:
+                                 Image(systemName: "exclamationmark.triangle").foregroundColor(.red)
+                             @unknown default:
+                                 EmptyView()
+                             }
+                        }
+                        .frame(maxHeight: 500)
+                        
+                        Text("This unique pattern was generated from chaotic lava lamp movements, providing true randomness for your key.")
+                            .font(.subheadline)
+                            .foregroundColor(.white.opacity(0.6))
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 32)
+                            .lineSpacing(4)
+                    }
+                    
+                    Spacer()
+                }
+                .padding()
+            }
+            .presentationDetents([.medium])
+            .presentationDragIndicator(.visible)
+        }
     }
 }
 

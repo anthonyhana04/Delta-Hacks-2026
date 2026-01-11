@@ -23,21 +23,8 @@ func (ctrl *Controller) HandleListGroups(c *gin.Context) {
 		return
 	}
 
-	// Helper to ensure default groups exist if none are found
-	// NOTE: In a real app, successful login usually creates these.
-	// For this hackathon, lazily creating them on fetch is robustness.
-	if len(groups) == 0 {
-		defaultGroups := []models.VaultGroup{
-			{UserID: userID, Name: "Social", Icon: "message.fill", Color: "#A020F0"},  // Purple
-			{UserID: userID, Name: "Work", Icon: "briefcase.fill", Color: "#FFA500"},  // Orange
-			{UserID: userID, Name: "Family", Icon: "house.fill", Color: "#008000"},    // Green
-			{UserID: userID, Name: "Personal", Icon: "person.fill", Color: "#0000FF"}, // Blue
-		}
-
-		if err := ctrl.DB.Create(&defaultGroups).Error; err == nil {
-			groups = defaultGroups
-		}
-	}
+	// Default Groups logic removed as per user request.
+	// Groups will be empty until user creates them.
 
 	c.JSON(http.StatusOK, groups)
 }
