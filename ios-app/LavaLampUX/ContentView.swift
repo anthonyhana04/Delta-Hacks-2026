@@ -20,7 +20,7 @@ struct ContentView: View {
                 .transition(.opacity)
                 
             case .mainApp:
-                VaultView()
+                MainTabView()
                     .transition(.move(edge: .trailing))
             }
         }
