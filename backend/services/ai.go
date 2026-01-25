@@ -47,8 +47,7 @@ func (s *AIService) GenerateWallpaper(originalImage []byte) ([]byte, error) {
 		genai.NewContentFromParts(parts, genai.RoleUser),
 	}
 
-	// Call Gemini
-	// Using gemini-2.5-flash as requested
+	// Call Gemini currently using gemini-2.5-flash as requested
 	temp := float32(0.4)
 	config := &genai.GenerateContentConfig{
 		MaxOutputTokens: int32(500), // Error said *int32 cannot be used as int32 -> So value.
