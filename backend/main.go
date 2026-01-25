@@ -20,10 +20,6 @@ func main() {
 		log.Println("Loaded .env file successfully")
 	}
 
-	// Debug: Print DB config (masking password)
-	log.Printf("DB Config: Host=%s User=%s DB=%s Port=%s",
-		os.Getenv("DB_HOST"), os.Getenv("DB_USER"), os.Getenv("DB_NAME"), os.Getenv("DB_PORT"))
-
 	r := gin.Default()
 
 	// Session Store
